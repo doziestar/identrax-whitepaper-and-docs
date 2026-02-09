@@ -191,14 +191,15 @@ flowchart LR
 
 Every Identrax identity begins with a verified NIN. The registration flow:
 
-```
-┌────────────────┐     ┌─────────────┐     ┌──────────────┐
-│ Citizen enters │────▶│ NIMC verifies│────▶│ Identity     │
-│ NIN in wallet  │     │ NIN is valid │     │ Anchor       │
-│                │     │ + returns    │     │ created      │
-│                │     │   biographic │     │ (NIN hashed, │
-│                │     │   data       │     │  encrypted)  │
-└────────────────┘     └─────────────┘     └──────────────┘
+```mermaid
+flowchart LR
+    Citizen["Citizen enters<br/>NIN in Wallet"]
+    NIMC["NIMC verifies<br/>NIN is valid<br/>+ returns biographic data"]
+    Anchor["Identity Anchor created<br/>(NIN hashed,<br/>encrypted)"]
+
+    Citizen --> NIMC
+    NIMC --> Anchor
+
 ```
 
 **What we store:**
@@ -216,20 +217,24 @@ The platform **does not create a parallel identity database**. It creates a cryp
 
 Identity claims carry progressive assurance levels, each building on the previous:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    ASSURANCE LADDER                           │
-│                                                             │
-│  L6 ─── Continuous risk monitoring (Phase 4)          ▲     │
-│  L5 ─── Verified employment + income (Phase 3)       │     │
-│  L4 ─── Verified address (Phase 2)                   │     │
-│  L3 ─── Biometric/PIN-verified action            ┌───┘     │
-│  L2 ─── Device-bound wallet with attested keys   │  V1     │
-│  L1 ─── NIN verified                             └───┐     │
-│                                                       │     │
-│  Organizations can request a minimum assurance level  ▼     │
-│  for each verification request.                             │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph ASSURANCE["ASSURANCE LADDER"]
+        direction TB
+
+        L1["L1 — NIN verified"]
+        L2["L2 — Device-bound wallet<br/>with attested keys"]
+        L3["L3 — Biometric / PIN-verified action"]
+        L4["L4 — Verified address<br/>(Phase 2)"]
+        L5["L5 — Verified employment + income<br/>(Phase 3)"]
+        L6["L6 — Continuous risk monitoring<br/>(Phase 4)"]
+
+        L1 --> L2 --> L3 --> L4 --> L5 --> L6
+    end
+
+    Org["Organisation verification request"]
+    Org -->|"Requests minimum<br/>assurance level"| L3
+
 ```
 
 | Level | Requirement | What it Proves |
@@ -245,28 +250,27 @@ Identity claims carry progressive assurance levels, each building on the previou
 
 Each citizen device holds two asymmetric keypairs:
 
-```
-┌──────────────────────────────────────────┐
-│              DEVICE KEYSTORE             │
-│          (TEE / Secure Enclave)          │
-│                                          │
-│  ┌─────────────────────────────────────┐ │
-│  │  AUTH KEY (PIN 1)                   │ │
-│  │  Algorithm: Ed25519                 │ │
-│  │  Purpose: Login, consent approval   │ │
-│  │  Activation: Biometric / PIN        │ │
-│  └─────────────────────────────────────┘ │
-│                                          │
-│  ┌─────────────────────────────────────┐ │
-│  │  SIGNING KEY (PIN 2)               │ │
-│  │  Algorithm: Ed25519                 │ │
-│  │  Purpose: Document signing          │ │
-│  │  Activation: Separate PIN/biometric │ │
-│  └─────────────────────────────────────┘ │
-│                                          │
-│  Private keys NEVER leave this enclave.  │
-│  Backend stores only public keys.        │
-└──────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph TEE["DEVICE KEYSTORE<br/>(TEE / Secure Enclave)"]
+        direction TB
+
+        AuthKey["AUTH KEY (PIN 1)<br/>
+        Algorithm: Ed25519<br/>
+        Purpose: Login & consent approval<br/>
+        Activation: Biometric / PIN"]
+
+        SignKey["SIGNING KEY (PIN 2)<br/>
+        Algorithm: Ed25519<br/>
+        Purpose: Document signing<br/>
+        Activation: Separate PIN / biometric"]
+    end
+
+    Backend["Backend Services"]
+
+    AuthKey -.->|"Public key only"| Backend
+    SignKey -.->|"Public key only"| Backend
+
 ```
 
 This follows the **Smart-ID model** (widely deployed in Estonia) where two-key separation ensures that consent approval and document signing have distinct authorization channels — a compromise of one key does not compromise the other.
@@ -276,27 +280,47 @@ This follows the **Smart-ID model** (widely deployed in Estonia) where two-key s
 Citizens can enrich their identity with verifiable credentials:
 
 ```
-                         ┌────────────┐
-                         │    USER    │
-                         └─────┬──────┘
-              ┌────────────┬───┼───┬────────────┐
-              ▼            ▼   │   ▼            ▼
-        ┌──────────┐ ┌────────┐│┌──────────┐┌──────────┐
-        │ Addresses│ │Linked  │││Education ││  Vault   │
-        │          │ │  IDs   │││Credentials││Documents │
-        │ • line1  │ │ • BVN  │││• degree  ││• uploaded│
-        │ • city   │ │ • pass-│││• school  ││  files   │
-        │ • state  │ │   port │││• class   ││• encrypted│
-        │ • geo    │ │ • DL   │││• dates   ││• versioned│
-        │ • verify │ │ • verify│││• verify  ││          │
-        │   status │ │  status│││  status  ││          │
-        └──────────┘ └────────┘│└──────────┘└──────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │  ATTESTATIONS       │
-                    │  (Org-signed proofs  │
-                    │   of verification)  │
-                    └─────────────────────┘
+flowchart TB
+    User["USER"]
+
+    Addresses["Addresses<br/>
+    • line1<br/>
+    • city<br/>
+    • state<br/>
+    • geo<br/>
+    • verification status"]
+
+    LinkedIDs["Linked IDs<br/>
+    • BVN<br/>
+    • Passport<br/>
+    • Driver’s License<br/>
+    • verification status"]
+
+    Education["Education Credentials<br/>
+    • degree<br/>
+    • school<br/>
+    • class<br/>
+    • dates<br/>
+    • verification status"]
+
+    Vault["Vault Documents<br/>
+    • uploaded files<br/>
+    • encrypted<br/>
+    • versioned"]
+
+    Attestations["ATTESTATIONS<br/>(Organisation-signed proofs<br/>of verification)"]
+
+    %% Relationships
+    User --> Addresses
+    User --> LinkedIDs
+    User --> Education
+    User --> Vault
+
+    Addresses --> Attestations
+    LinkedIDs --> Attestations
+    Education --> Attestations
+    Vault --> Attestations
+
 ```
 
 Each profile field can be independently attested by an authorized organization, creating a web of trust without a central authority.
@@ -321,70 +345,71 @@ Every consent grant has:
 
 ### 5.2 Consent Flow
 
-```
-┌──────────────┐                    ┌──────────────┐                    ┌──────────────┐
-│ Organisation │                    │   Identrax   │                    │   Citizen    │
-│              │                    │   Platform   │                    │   Wallet     │
-└──────┬───────┘                    └──────┬───────┘                    └──────┬───────┘
-       │                                   │                                   │
-       │  1. "I need to verify this        │                                   │
-       │      person's identity"           │                                   │
-       │  POST verification-request        │                                   │
-       │  { scopes, purpose, assurance }   │                                   │
-       │──────────────────────────────────▶│                                   │
-       │                                   │                                   │
-       │                                   │  2. Create ConsentRequest         │
-       │                                   │     Push notification             │
-       │                                   │────────────────────────────────▶ │
-       │                                   │                                   │
-       │                                   │  3. Citizen reviews:              │
-       │                                   │     "Bank XYZ wants to verify:    │
-       │                                   │      ✓ NIN is valid               │
-       │                                   │      ✓ Full name                  │
-       │                                   │      ✓ Date of birth              │
-       │                                   │      Purpose: Account opening     │
-       │                                   │      Duration: One-time"          │
-       │                                   │                                   │
-       │                                   │  4. Citizen approves (biometric)  │
-       │                                   │     Signs consent with Auth Key   │
-       │                                   │◀────────────────────────────────  │
-       │                                   │                                   │
-       │                                   │  5. Platform creates:             │
-       │                                   │     • ConsentGrant (signed)       │
-       │                                   │     • ProofToken (time-limited)   │
-       │                                   │     • AuditEvent (immutable)      │
-       │                                   │     • Webhook → Organisation      │
-       │                                   │                                   │
-       │  6. Webhook: consent.approved     │                                   │
-       │     { proof_token }               │                                   │
-       │◀──────────────────────────────────│                                   │
-       │                                   │                                   │
-       │  7. GET /proofs/{token}           │                                   │
-       │──────────────────────────────────▶│                                   │
-       │                                   │                                   │
-       │  8. { claims: verified data }     │  8. Platform returns ONLY the     │
-       │     Only consented scopes         │     scopes the citizen approved.  │
-       │◀──────────────────────────────────│     Token expires after 10min.    │
-       │                                   │                                   │
+```mermaid
+sequenceDiagram
+    participant Org as Organisation
+    participant Idx as Identrax Platform
+    participant Wallet as Citizen Wallet
+
+    %% Step 1
+    Org ->> Idx: POST /verification-request\n{ scopes, purpose, assurance }\n"I need to verify this person"
+
+    %% Step 2
+    Idx ->> Wallet: Create ConsentRequest\nPush notification
+
+    %% Step 3
+    Note right of Wallet: Citizen reviews request:\n• NIN validity\n• Full name\n• Date of birth\nPurpose: Account opening\nDuration: One-time
+
+    %% Step 4
+    Wallet ->> Idx: Approve consent\nBiometric / PIN\nSigned with Auth Key
+
+    %% Step 5
+    Idx ->> Idx: Create ConsentGrant (signed)\nCreate ProofToken (time-limited)\nWrite AuditEvent (immutable)
+
+    %% Step 6
+    Idx -->> Org: Webhook: consent.approved\n{ proof_token }
+
+    %% Step 7
+    Org ->> Idx: GET /proofs/{token}
+
+    %% Step 8
+    Idx -->> Org: { verified claims }\nONLY consented scopes\nToken expires after 10 minutes
+
 ```
 
 ### 5.3 Scope Registry
 
 Scopes follow a hierarchical naming convention:
 
-```
-identity.nin_verified      → Boolean: NIN is verified
-identity.name              → String: Full name (strong consent required)
-identity.name_match        → Boolean: Name matches provided value
-identity.dob               → Date: Date of birth (strong consent required)
-identity.age_over_18       → Boolean: Person is over 18
-identity.phone_verified    → Boolean: Phone is verified
-address.verified           → Boolean: Address is verified
-address.state              → String: State of residence only
-linked_id.bvn.verified     → Boolean: BVN is verified
-education.verified         → Boolean: Has verified credential
-credit.score               → Object: Credit score + band
-screening.aml              → Object: AML screening result
+```mermaid
+flowchart TB
+    subgraph IDENTITY["Identity Claims"]
+        id1["identity.nin_verified<br/>Boolean<br/>NIN is verified"]
+        id2["identity.name<br/>String<br/>Full name<br/>(strong consent)"]
+        id3["identity.name_match<br/>Boolean<br/>Name matches provided value"]
+        id4["identity.dob<br/>Date<br/>Date of birth<br/>(strong consent)"]
+        id5["identity.age_over_18<br/>Boolean<br/>Person is over 18"]
+        id6["identity.phone_verified<br/>Boolean<br/>Phone is verified"]
+    end
+
+    subgraph ADDRESS["Address Claims"]
+        ad1["address.verified<br/>Boolean<br/>Address is verified"]
+        ad2["address.state<br/>String<br/>State of residence only"]
+    end
+
+    subgraph LINKED["Linked ID Claims"]
+        li1["linked_id.bvn.verified<br/>Boolean<br/>BVN is verified"]
+    end
+
+    subgraph EDUCATION["Education Claims"]
+        ed1["education.verified<br/>Boolean<br/>Has verified credential"]
+    end
+
+    subgraph RISK["Risk & Screening"]
+        cr1["credit.score<br/>Object<br/>Score + band"]
+        sc1["screening.aml<br/>Object<br/>AML screening result"]
+    end
+
 ```
 
 The scope system enforces **data minimization**: an organization requesting age verification receives only `true` or `false`, never the actual date of birth.
@@ -407,41 +432,35 @@ The scope system enforces **data minimization**: an organization requesting age 
 
 ### 6.1 Overview
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                    CRYPTOGRAPHIC LAYERS                           │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │  IDENTITY BINDING                                        │    │
-│  │  Ed25519 keypairs (per-device, hardware-backed)          │    │
-│  │  Challenge-response: no shared secrets                   │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │  DATA PROTECTION                                         │    │
-│  │  SHA-256 hashing (NIN, tokens, documents)                │    │
-│  │  AES-256-GCM envelope encryption (NIN, webhook secrets)  │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │  SESSION MANAGEMENT                                      │    │
-│  │  PASETO v4.local tokens (symmetric, not JWT)             │    │
-│  │  Only SHA-256 hashes stored server-side                  │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │  INTEGRITY & NON-REPUDIATION                             │    │
-│  │  Ed25519 platform signing key (proof tokens, QR codes)   │    │
-│  │  HMAC-SHA256 webhook payload signing                     │    │
-│  │  Blockchain anchoring (Polygon) for immutable proofs     │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │  PRIVACY                                                  │    │
-│  │  Zero-knowledge proofs (age, credit band — without PII)  │    │
-│  │  Selective disclosure via scoped consent                  │    │
-│  └──────────────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph CRYPTO["CRYPTOGRAPHIC LAYERS"]
+        direction TB
+
+        IB["IDENTITY BINDING<br/>
+        • Ed25519 keypairs (per-device, hardware-backed)<br/>
+        • Challenge–response (no shared secrets)"]
+
+        DP["DATA PROTECTION<br/>
+        • SHA-256 hashing (NIN, tokens, documents)<br/>
+        • AES-256-GCM envelope encryption<br/>(NIN, webhook secrets)"]
+
+        SM["SESSION MANAGEMENT<br/>
+        • PASETO v4.local tokens (symmetric, not JWT)<br/>
+        • Only SHA-256 hashes stored server-side"]
+
+        IN["INTEGRITY & NON-REPUDIATION<br/>
+        • Ed25519 platform signing key<br/>(proof tokens, QR codes)<br/>
+        • HMAC-SHA256 webhook signing<br/>
+        • Blockchain anchoring (Polygon)"]
+
+        PR["PRIVACY<br/>
+        • Zero-knowledge proofs (age, credit band)<br/>
+        • Selective disclosure via scoped consent"]
+
+        IB --> DP --> SM --> IN --> PR
+    end
+
 ```
 
 ### 6.2 Challenge-Response Protocol
@@ -576,24 +595,24 @@ The DID Document contains:
 
 DID proofs are anchored to the **Polygon** blockchain (EVM-compatible, low-cost):
 
-```
-┌──────────────┐                    ┌──────────────────┐
-│ Identrax API │                    │  Polygon Network │
-│              │                    │                  │
-│ 1. Compute   │     EIP-1559      │                  │
-│    content   │─── Zero-value ────▶│  Transaction     │
-│    hash      │     transaction    │  data = hash     │
-│              │     with hash as   │                  │
-│ 2. Store     │     calldata       │  Block N:        │
-│    txHash +  │                    │  0x7a3f...       │
-│    blockNum  │                    │                  │
-│              │◀── Receipt ────────│  Confirmations:  │
-│ 3. Wait for  │                    │  1 → 5 → 30     │
-│    30 confs  │                    │                  │
-└──────────────┘                    └──────────────────┘
+```mermaid
+sequenceDiagram
+    participant API as Identrax API
+    participant Poly as Polygon Network
 
-Cost per anchor: ~30,000 gas ≈ $0.001 on Polygon
-Finality: ~30 block confirmations ≈ 1 minute
+    %% Step 1: Hash anchoring
+    API ->> API: Compute content hash
+    API ->> Poly: EIP-1559 zero-value transaction\ncalldata = content hash
+
+    %% Step 2: Receipt
+    Poly -->> API: Transaction receipt\n{ txHash, blockNumber }
+
+    %% Step 3: Finality
+    API ->> API: Store txHash + blockNumber
+    API ->> Poly: Wait for confirmations
+    Note right of Poly: Confirmations:\n1 → 5 → 30\n(~1 minute finality)
+
+    Note over API,Poly: Cost per anchor ≈ 30,000 gas\n≈ $0.001 on Polygon
 ```
 
 **Why Polygon?**
@@ -635,32 +654,53 @@ Identrax supports zero-knowledge proofs for privacy-preserving claims:
 
 ### 9.3 Architecture
 
-```
-┌──────────────────────────────────────────────────────┐
-│                    ZK PROOF SYSTEM                     │
-│                                                      │
-│  ┌────────────────┐                                  │
-│  │   ZK CIRCUIT   │  Admin-managed proof templates   │
-│  │                │  • claim_type (e.g. "age_over")  │
-│  │  proving_key   │  • proof_system (groth16, etc.)  │
-│  │  verify_key    │  • input schemas                 │
-│  └───────┬────────┘                                  │
-│          │                                           │
-│          ▼                                           │
-│  ┌────────────────┐                                  │
-│  │   ZK PROOF     │  Per-user, per-claim instance    │
-│  │                │  • proof_data (opaque bytes)     │
-│  │  public_inputs │  • nonce (one-time use)          │
-│  │  verified: T/F │  • max_verifications             │
-│  │  expires_at    │  • expires_at                    │
-│  └────────────────┘                                  │
-│                                                      │
-│  Flow:                                               │
-│  1. Citizen requests proof via wallet                 │
-│  2. Platform generates proof using citizen's data     │
-│  3. Proof is verifiable by anyone with the verify key│
-│  4. Citizen's actual data is never revealed           │
-└──────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph ZK["ZK PROOF SYSTEM"]
+        direction TB
+
+        %% Circuit Layer
+        subgraph CIRCUIT["ZK CIRCUIT"]
+            direction TB
+            CK["proving_key"]
+            VK["verify_key"]
+
+            NoteC["Admin-managed proof templates<br/>
+            • claim_type (e.g. age_over)<br/>
+            • proof_system (Groth16, etc.)<br/>
+            • input schemas"]
+
+            CK --- VK
+        end
+
+        %% Proof Layer
+        subgraph PROOF["ZK PROOF"]
+            direction TB
+            PI["public_inputs"]
+            PD["proof_data<br/>(opaque bytes)"]
+            VF["verified: true / false"]
+            EX["expires_at"]
+
+            Meta["Per-user, per-claim instance<br/>
+            • nonce (one-time use)<br/>
+            • max_verifications<br/>
+            • expires_at"]
+
+            PI --> PD --> VF --> EX
+        end
+
+        CIRCUIT --> PROOF
+    end
+
+    %% Flow Explanation
+    NoteFlow["Flow:<br/>
+    1. Citizen requests proof via wallet<br/>
+    2. Platform generates proof using citizen data<br/>
+    3. Proof is verifiable by anyone with verify_key<br/>
+    4. Citizen’s actual data is never revealed"]
+
+    PROOF -.-> NoteFlow
+
 ```
 
 ---
@@ -673,42 +713,46 @@ Traditional credit scoring in Nigeria relies on limited data from credit bureaus
 
 ### 10.2 Architecture
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    CREDIT SCORING ENGINE                       │
-│                                                              │
-│  ┌─────────────────┐     ┌─────────────────┐                │
-│  │  SCORING MODEL  │     │  CREDIT SIGNAL  │                │
-│  │                 │     │                 │                │
-│  │  weight_config  │     │  source_type:   │                │
-│  │  band_thresholds│     │  • utility_bill │                │
-│  │  min_signals    │     │  • rent_payment │                │
-│  │  min_confidence │     │  • telco_usage  │                │
-│  │  validity_days  │     │  • bank_txn     │                │
-│  └────────┬────────┘     │  • employment   │                │
-│           │              │                 │                │
-│           │              │  raw_value      │                │
-│           │              │  normalized     │                │
-│           │              │  weight         │                │
-│           │              │  weighted_      │                │
-│           │              │    contribution │                │
-│           │              └────────┬────────┘                │
-│           │                       │                          │
-│           ▼                       ▼                          │
-│  ┌─────────────────────────────────────────┐                │
-│  │            SCORE COMPUTATION            │                │
-│  │                                         │                │
-│  │  score = Σ(signal.weighted_contribution)│                │
-│  │  band  = map(score, band_thresholds)    │                │
-│  │  confidence = f(signal_count, diversity)│                │
-│  │                                         │                │
-│  │  Output: 0-1000 score, band, confidence │                │
-│  └─────────────────────────────────────────┘                │
-│                                                              │
-│  Bands: very_poor | poor | fair | good | very_good | excellent│
-│  All signals require active consent grants.                  │
-│  Scores expire and must be re-computed periodically.         │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph CREDIT["CREDIT SCORING ENGINE"]
+        direction TB
+
+        %% Model configuration
+        subgraph MODEL["SCORING MODEL"]
+            direction TB
+            W["weight_config"]
+            B["band_thresholds"]
+            MS["min_signals"]
+            MC["min_confidence"]
+            VD["validity_days"]
+        end
+
+        %% Credit signals
+        subgraph SIGNALS["CREDIT SIGNAL"]
+            direction TB
+            S1["source_type:<br/>• utility_bill<br/>• rent_payment<br/>• telco_usage<br/>• bank_txn<br/>• employment"]
+            S2["raw_value"]
+            S3["normalized"]
+            S4["weight"]
+            S5["weighted_contribution"]
+            S2 --> S3 --> S4 --> S5
+        end
+
+        %% Computation
+        subgraph COMPUTE["SCORE COMPUTATION"]
+            direction TB
+            C1["score = Σ(signal.weighted_contribution)"]
+            C2["band = map(score, band_thresholds)"]
+            C3["confidence = f(signal_count, diversity)"]
+            OUT["Output:<br/>• score (0–1000)<br/>• band<br/>• confidence"]
+            C1 --> C2 --> C3 --> OUT
+        end
+
+        MODEL --> COMPUTE
+        SIGNALS --> COMPUTE
+    end
+
 ```
 
 ### 10.3 Key Differentiator
@@ -728,41 +772,46 @@ Unlike traditional credit bureaus that collect data without direct citizen invol
 
 Identrax provides built-in AML/KYC screening for organizations subject to compliance requirements:
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                  SCREENING ENGINE                             │
-│                                                              │
-│  ┌───────────────────┐  ┌────────────────────────┐          │
-│  │ SCREENING POLICY  │  │   SCREENING REQUEST    │          │
-│  │                   │  │                        │          │
-│  │ jurisdiction      │  │  type: pep / sanctions │          │
-│  │ enabled_sources   │  │       / adverse_media  │          │
-│  │ fuzzy_threshold   │  │  status: pending →     │          │
-│  │ risk_thresholds   │  │    completed / flagged │          │
-│  │ auto_clear        │  │  risk_level + score    │          │
-│  │ re_screening_days │  │  match_count           │          │
-│  └───────────────────┘  └───────────┬────────────┘          │
-│                                     │                        │
-│                                     ▼                        │
-│                          ┌────────────────────┐              │
-│                          │ SCREENING RESULT   │              │
-│                          │                    │              │
-│                          │ source: OFAC / UN  │              │
-│                          │ match_type: exact/ │              │
-│                          │   fuzzy / alias    │              │
-│                          │ match_score: 0-1   │              │
-│                          │ disposition:       │              │
-│                          │   cleared / flagged│              │
-│                          │   / escalated      │              │
-│                          └────────────────────┘              │
-│                                                              │
-│  Features:                                                   │
-│  • Configurable fuzzy matching thresholds                    │
-│  • Policy-based auto-clear for low-risk matches              │
-│  • Manual review workflow for flagged results                 │
-│  • Periodic re-screening on configurable schedule            │
-│  • Full audit trail of all screening decisions               │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph SCREENING["SCREENING ENGINE"]
+        direction TB
+
+        %% Policy configuration
+        subgraph POLICY["SCREENING POLICY"]
+            direction TB
+            P1["jurisdiction"]
+            P2["enabled_sources"]
+            P3["fuzzy_threshold"]
+            P4["risk_thresholds"]
+            P5["auto_clear"]
+            P6["re_screening_days"]
+        end
+
+        %% Screening request
+        subgraph REQUEST["SCREENING REQUEST"]
+            direction TB
+            R1["type:<br/>• pep<br/>• sanctions<br/>• adverse_media"]
+            R2["status:<br/>pending → completed / flagged"]
+            R3["risk_level + score"]
+            R4["match_count"]
+            R1 --> R2 --> R3 --> R4
+        end
+
+        %% Screening result
+        subgraph RESULT["SCREENING RESULT"]
+            direction TB
+            S1["source:<br/>OFAC / UN"]
+            S2["match_type:<br/>exact / fuzzy / alias"]
+            S3["match_score: 0–1"]
+            S4["disposition:<br/>cleared / flagged / escalated"]
+            S1 --> S2 --> S3 --> S4
+        end
+
+        POLICY --> REQUEST
+        REQUEST --> RESULT
+    end
+
 ```
 
 ---
@@ -777,43 +826,42 @@ Nigeria's internet infrastructure, while improving, remains unreliable in rural 
 
 Identrax issues **offline verification tokens** — platform-signed QR codes that can be verified without an internet connection:
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                OFFLINE VERIFICATION FLOW                      │
-│                                                              │
-│  ONLINE (preparation):                                       │
-│  1. Citizen requests offline token via wallet                │
-│  2. Platform creates signed payload:                         │
-│     {                                                        │
-│       user_id, scopes, claims,                               │
-│       verification_level: "L2",                              │
-│       issued_at, expires_at,                                 │
-│       nonce,                                                 │
-│       platform_signature: Ed25519(...)                        │
-│     }                                                        │
-│  3. Wallet generates QR code from signed payload             │
-│  4. Token stored locally for offline use                     │
-│                                                              │
-│  OFFLINE (verification):                                     │
-│  1. Verifier scans QR code                                   │
-│  2. Verifier app (with embedded platform public key):        │
-│     a. Decodes payload                                       │
-│     b. Verifies Ed25519 signature                            │
-│     c. Checks expiry                                         │
-│     d. Checks max_uses                                       │
-│     e. Displays verified claims                              │
-│  3. No internet required for verification                    │
-│                                                              │
-│  RECONNECTION (reconciliation):                              │
-│  When connectivity returns, offline usage records             │
-│  are synced back to the platform for audit purposes.         │
-│                                                              │
-│  Constraints:                                                │
-│  • Short expiry (configurable, default 24h)                  │
-│  • Limited max uses (configurable)                           │
-│  • Reduced assurance level (no real-time status check)       │
-│  • Reconciliation required on reconnect                      │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph OFFLINEFLOW["OFFLINE VERIFICATION FLOW"]
+        direction TB
+
+        %% ONLINE PREPARATION
+        subgraph ONLINE["ONLINE (Preparation)"]
+            O1["Citizen requests offline token<br/>via wallet"]
+            O2["Platform creates signed payload<br/>{ user_id, scopes, claims,<br/>verification_level: L2,<br/>issued_at, expires_at,<br/>nonce,<br/>platform_signature: Ed25519 }"]
+            O3["Wallet generates QR code<br/>from signed payload"]
+            O4["Token stored locally<br/>for offline use"]
+
+            O1 --> O2 --> O3 --> O4
+        end
+
+        %% OFFLINE VERIFICATION
+        subgraph OFFLINE["OFFLINE (Verification)"]
+            F1["Verifier scans QR code"]
+            F2["Verifier app actions:<br/>a. Decode payload<br/>b. Verify Ed25519 signature<br/>c. Check expiry<br/>d. Check max_uses<br/>e. Display verified claims"]
+            F3["Verification succeeds<br/>No internet required"]
+
+            F1 --> F2 --> F3
+        end
+
+        %% RECONNECTION
+        subgraph RECONNECT["RECONNECTION (Reconciliation)"]
+            R1["Offline usage records stored locally"]
+            R2["When connectivity returns,<br/>records synced to platform"]
+            R3["Platform updates audit trail"]
+
+            R1 --> R2 --> R3
+        end
+
+        ONLINE --> OFFLINE --> RECONNECT
+    end
+
 ```
 
 ---
@@ -822,47 +870,64 @@ Identrax issues **offline verification tokens** — platform-signed QR codes tha
 
 ### 13.1 Nine-Layer Defense
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    SECURITY ARCHITECTURE                      │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Layer 1: TRANSPORT                                    │  │
-│  │  TLS 1.3 · CORS allowlisting · Non-root containers    │  │
-│  ├────────────────────────────────────────────────────────┤  │
-│  │  Layer 2: AUTHENTICATION                               │  │
-│  │  Ed25519 challenge-response (wallet)                   │  │
-│  │  HMAC API key + OAuth tokens (org)                     │  │
-│  │  Static API key rotation (admin)                       │  │
-│  ├────────────────────────────────────────────────────────┤  │
-│  │  Layer 3: AUTHORIZATION                                │  │
-│  │  Scope-based access control · Ownership checks         │  │
-│  │  Consent-gated data access                             │  │
-│  ├────────────────────────────────────────────────────────┤  │
-│  │  Layer 4: INPUT VALIDATION                             │  │
-│  │  ULID format validation · Body size limits             │  │
-│  │  Type checking · Business rule validation              │  │
-│  ├────────────────────────────────────────────────────────┤  │
-│  │  Layer 5: RATE LIMITING                                │  │
-│  │  Global: 1000/min · Wallet: 60/min · Org: 300/min     │  │
-│  │  NIN verify: 3/day · Challenge failures: 5 → lockout  │  │
-│  ├────────────────────────────────────────────────────────┤  │
-│  │  Layer 6: DATA PROTECTION                              │  │
-│  │  NIN: hashed + encrypted · Tokens: hash-only stored    │  │
-│  │  Webhook secrets: AES-256-GCM · Docs: SHA-256 hashes  │  │
-│  ├────────────────────────────────────────────────────────┤  │
-│  │  Layer 7: AUDIT & MONITORING                           │  │
-│  │  Immutable audit trail · Structured JSON logging       │  │
-│  │  Health check endpoints · Citizen audit visibility     │  │
-│  ├────────────────────────────────────────────────────────┤  │
-│  │  Layer 8: IDEMPOTENCY                                  │  │
-│  │  X-Idempotency-Key support · Redis-cached replay       │  │
-│  ├────────────────────────────────────────────────────────┤  │
-│  │  Layer 9: BLOCKCHAIN INTEGRITY                         │  │
-│  │  Content hashes anchored to Polygon · 30-block finality│  │
-│  │  Gas price safety caps · Tamper-evident proof chain     │  │
-│  └────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph SECURITY["SECURITY ARCHITECTURE"]
+        direction TB
+
+        L1["Layer 1 — TRANSPORT<br/>
+        • TLS 1.3<br/>
+        • CORS allowlisting<br/>
+        • Non-root containers"]
+
+        L2["Layer 2 — AUTHENTICATION<br/>
+        • Ed25519 challenge–response (wallet)<br/>
+        • HMAC API key + OAuth tokens (organisation)<br/>
+        • Static API key rotation (admin)"]
+
+        L3["Layer 3 — AUTHORIZATION<br/>
+        • Scope-based access control<br/>
+        • Ownership checks<br/>
+        • Consent-gated data access"]
+
+        L4["Layer 4 — INPUT VALIDATION<br/>
+        • ULID format validation<br/>
+        • Body size limits<br/>
+        • Type checking<br/>
+        • Business rule validation"]
+
+        L5["Layer 5 — RATE LIMITING<br/>
+        • Global: 1000/min<br/>
+        • Wallet: 60/min<br/>
+        • Org: 300/min<br/>
+        • NIN verify: 3/day<br/>
+        • Challenge failures: 5 → lockout"]
+
+        L6["Layer 6 — DATA PROTECTION<br/>
+        • NIN: hashed + encrypted<br/>
+        • Tokens: hash-only storage<br/>
+        • Webhook secrets: AES-256-GCM<br/>
+        • Documents: SHA-256 hashes"]
+
+        L7["Layer 7 — AUDIT & MONITORING<br/>
+        • Immutable audit trail<br/>
+        • Structured JSON logging<br/>
+        • Health check endpoints<br/>
+        • Citizen audit visibility"]
+
+        L8["Layer 8 — IDEMPOTENCY<br/>
+        • X-Idempotency-Key support<br/>
+        • Redis-cached replay protection"]
+
+        L9["Layer 9 — BLOCKCHAIN INTEGRITY<br/>
+        • Content hashes anchored to Polygon<br/>
+        • 30-block finality<br/>
+        • Gas price safety caps<br/>
+        • Tamper-evident proof chain"]
+
+        L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7 --> L8 --> L9
+    end
+
 ```
 
 ### 13.2 Threat Model
@@ -948,43 +1013,49 @@ Identrax is built as a **modular monolith** — a single deployable binary with 
 
 ### 15.3 Module Map
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    18 DOMAIN MODULES                          │
-│                                                              │
-│  CORE (V1)                           ADVANCED (Phase 2+)     │
-│  ────────                            ─────────────────       │
-│  ┌──────────┐ ┌──────────┐           ┌──────────┐           │
-│  │   auth   │ │ identity │           │  credit  │           │
-│  │ sessions │ │  NIN +   │           │ scoring  │           │
-│  │ tokens   │ │ devices  │           │ signals  │           │
-│  └──────────┘ └──────────┘           └──────────┘           │
-│  ┌──────────┐ ┌──────────┐           ┌──────────┐           │
-│  │challenge │ │ consent  │           │screening │           │
-│  │  nonces  │ │ requests │           │ AML/KYC  │           │
-│  │  verify  │ │ grants   │           │ policies │           │
-│  └──────────┘ └──────────┘           └──────────┘           │
-│  ┌──────────┐ ┌──────────┐           ┌──────────┐           │
-│  │  proof   │ │   sign   │           │biometric │           │
-│  │ tokens   │ │ documents│           │ attestat.│           │
-│  │ verify   │ │ bundles  │           │ liveness │           │
-│  └──────────┘ └──────────┘           └──────────┘           │
-│  ┌──────────┐ ┌──────────┐           ┌──────────┐           │
-│  │  audit   │ │ profile  │           │   DID    │           │
-│  │ immutable│ │ address  │           │blockchain│           │
-│  │ events   │ │ linked   │           │ anchoring│           │
-│  └──────────┘ └──────────┘           └──────────┘           │
-│  ┌──────────┐ ┌──────────┐           ┌──────────┐           │
-│  │  vault   │ │ webhook  │           │   ZKP    │           │
-│  │ encrypted│ │ delivery │           │ circuits │           │
-│  │ docs     │ │ signing  │           │  proofs  │           │
-│  └──────────┘ └──────────┘           └──────────┘           │
-│  ┌──────────┐ ┌──────────┐           ┌──────────┐           │
-│  │ notify   │ │   org    │           │ offline  │           │
-│  │ push/sms │ │lifecycle │           │ QR tokens│           │
-│  │ email    │ │ API keys │           │ reconcile│           │
-│  └──────────┘ └──────────┘           └──────────┘           │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph DOMAINS["18 DOMAIN MODULES"]
+        direction LR
+
+        %% CORE V1
+        subgraph CORE["CORE (V1)"]
+            direction TB
+
+            C1["auth<br/>sessions<br/>tokens"]
+            C2["identity<br/>NIN + devices"]
+
+            C3["challenge<br/>nonces<br/>verify"]
+            C4["consent<br/>requests<br/>grants"]
+
+            C5["proof<br/>tokens<br/>verify"]
+            C6["sign<br/>documents<br/>bundles"]
+
+            C7["audit<br/>immutable<br/>events"]
+            C8["profile<br/>address<br/>linked"]
+
+            C9["vault<br/>encrypted<br/>docs"]
+            C10["webhook<br/>delivery<br/>signing"]
+
+            C11["notify<br/>push / sms / email"]
+            C12["org<br/>lifecycle<br/>API keys"]
+        end
+
+        %% ADVANCED PHASE 2+
+        subgraph ADVANCED["ADVANCED (Phase 2+)"]
+            direction TB
+
+            A1["credit<br/>scoring<br/>signals"]
+            A2["screening<br/>AML / KYC<br/>policies"]
+
+            A3["biometric<br/>attestation<br/>liveness"]
+            A4["DID<br/>blockchain<br/>anchoring"]
+
+            A5["ZKP<br/>circuits<br/>proofs"]
+            A6["offline<br/>QR tokens<br/>reconcile"]
+        end
+    end
+
 ```
 
 ---
