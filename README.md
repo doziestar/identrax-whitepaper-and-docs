@@ -83,7 +83,7 @@ As Nigerian citizens travel, work, and transact internationally, their domestica
 
 ### 2.1 Vision
 
-**A Nigeria where every citizen controls their own verified identity — where organizations can verify without collecting, and where identity is a right, not a product.**
+**A Nigeria where every citizen controls their own verified identity, where organizations can verify without collecting, and where identity is a right, not a product.**
 
 Identrax envisions a world where:
 
