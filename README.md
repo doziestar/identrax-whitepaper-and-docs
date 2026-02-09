@@ -279,7 +279,7 @@ This follows the **Smart-ID model** (widely deployed in Estonia) where two-key s
 
 Citizens can enrich their identity with verifiable credentials:
 
-```
+```mermaid
 flowchart TB
     User["USER"]
 
