@@ -8,9 +8,9 @@
 
 ## Abstract
 
-Nigeria has over 220 million citizens, yet verifiable digital identity remains fragmented, centralized, and privacy-hostile. Financial institutions, telcos, employers, and government agencies each build isolated KYC silos, duplicating effort, increasing breach surface, and forcing citizens to surrender raw personal data to every requesting party — with no visibility into how that data is used.
+Nigeria has over 220 million citizens, yet verifiable digital identity remains fragmented, centralized, and privacy-hostile. Financial institutions, telcos, employers, and government agencies each build isolated KYC silos, duplicating effort, increasing breach surface, and forcing citizens to surrender raw personal data to every requesting party with no visibility into how that data is used.
 
-**Identrax** is a NIN-anchored, mobile-wallet-based digital identity platform that fundamentally inverts this model. Instead of copying personal data to every verifier, Identrax places the citizen at the center: a cryptographic wallet on their device holds their identity credentials, and organizations can only access verified claims through time-limited, scope-restricted, user-approved consent grants. The platform never mints new identities — it anchors to Nigeria's existing National Identification Number (NIN) infrastructure, then layers privacy-preserving proofs, consent management, document signing, credit scoring, and blockchain-anchored decentralized identifiers on top.
+**Identrax** is a NIN-anchored, mobile-wallet-based digital identity platform that fundamentally inverts this model. Instead of copying personal data to every verifier, Identrax places the citizen at the center: a cryptographic wallet on their device holds their identity credentials, and organizations can only access verified claims through time-limited, scope-restricted, user-approved consent grants. The platform never mints new identities, it anchors to Nigeria's existing National Identification Number (NIN) infrastructure, then layers privacy-preserving proofs, consent management, document signing, credit scoring, and blockchain-anchored decentralized identifiers on top.
 
 This whitepaper presents the problem space, architectural philosophy, technical design, security model, economic analysis, and deployment roadmap for Identrax.
 
@@ -47,11 +47,11 @@ This whitepaper presents the problem space, architectural philosophy, technical 
 
 ### 1.1 Identity Fragmentation in Nigeria
 
-Nigeria's identity ecosystem is deeply fragmented. Citizens interact with multiple identity systems — NIN, BVN (Bank Verification Number), voter's card, driver's license, international passport — each maintained by different agencies with limited interoperability. Verifying a citizen's identity requires organizations to independently connect to each data source, creating redundant infrastructure and inconsistent experiences.
+Nigeria's identity ecosystem is deeply fragmented. Citizens interact with multiple identity systems. NIN, BVN (Bank Verification Number), voter's card, driver's license, international passport, each maintained by different agencies with limited interoperability. Verifying a citizen's identity requires organizations to independently connect to each data source, creating redundant infrastructure and inconsistent experiences.
 
 ### 1.2 The KYC Duplication Problem
 
-Every bank, fintech, telco, and government service runs its own KYC process. A single Nigerian citizen may complete KYC dozens of times across their financial and civic life, each time surrendering the same raw personal data — name, date of birth, address, photograph, NIN — to yet another database. This creates:
+Every bank, fintech, telco, and government service runs its own KYC process. A single Nigerian citizen may complete KYC dozens of times across their financial and civic life, each time surrendering the same raw personal data, name, date of birth, address, photograph, NIN, to yet another database. This creates:
 
 - **Data duplication**: The same PII exists in hundreds of databases with varying security postures.
 - **Breach amplification**: Each copy is a potential breach point. A breach at any one institution exposes data collected from many.
@@ -87,7 +87,7 @@ As Nigerian citizens travel, work, and transact internationally, their domestica
 
 Identrax envisions a world where:
 
-- A citizen opens a bank account by approving a 30-second consent request on their phone — no paperwork, no photocopies, no branch visit.
+- A citizen opens a bank account by approving a 30-second consent request on their phone, no paperwork, no photocopies, no branch visit.
 - A landlord verifies a prospective tenant's employment without ever seeing their payslip.
 - An employer confirms a degree without accessing the full academic transcript.
 - A citizen travelling abroad proves their identity to immigration authorities using a cryptographically-signed, blockchain-anchored digital credential.
@@ -102,7 +102,7 @@ Identrax envisions a world where:
 | 3 | **No passwords, ever** | All authentication is cryptographic challenge-response. No shared secrets. |
 | 4 | **Consent is explicit, scoped, and revocable** | Every data access requires a fresh, purpose-bound, time-limited consent grant that the citizen can revoke at any time. |
 | 5 | **Proofs over PII** | APIs return verified boolean claims ("NIN is verified", "age ≥ 18"), not raw personal data, unless the citizen explicitly consents to more. |
-| 6 | **Immutable audit trail** | Every sensitive operation — consent, verification, signing — creates an immutable audit event visible to the citizen. |
+| 6 | **Immutable audit trail** | Every sensitive operation — consent, verification, signing creates an immutable audit event visible to the citizen. |
 | 7 | **Offline-capable** | Core identity verification works without internet through signed QR codes. |
 | 8 | **Never sell data** | The platform will never sell, trade, or monetize personal identity data. |
 
@@ -273,7 +273,7 @@ flowchart TB
 
 ```
 
-This follows the **Smart-ID model** (widely deployed in Estonia) where two-key separation ensures that consent approval and document signing have distinct authorization channels — a compromise of one key does not compromise the other.
+This follows the **Smart-ID model** (widely deployed in Estonia) where two-key separation ensures that consent approval and document signing have distinct authorization channels a compromise of one key does not compromise the other.
 
 ### 4.4 Profile Data Model
 
@@ -493,7 +493,7 @@ This eliminates:
 | Implementation footguns | Many | Minimal |
 | Standard | RFC 7519 | IETF draft, widely audited |
 
-Identrax uses PASETO v4.local (symmetric encryption) for session tokens. The server never stores the raw token — only its SHA-256 hash — so even a database breach does not expose valid session tokens.
+Identrax uses PASETO v4.local (symmetric encryption) for session tokens. The server never stores the raw token only its SHA-256 hash, so even a database breach does not expose valid session tokens.
 
 ---
 
@@ -501,7 +501,7 @@ Identrax uses PASETO v4.local (symmetric encryption) for session tokens. The ser
 
 ### 7.1 Proof Tokens
 
-When a citizen approves a consent request, the platform issues a **Proof Token** — a short-lived, scope-bound, platform-signed artifact that the requesting organization uses to retrieve verified claims.
+When a citizen approves a consent request, the platform issues a **Proof Token**  a short-lived, scope-bound, platform-signed artifact that the requesting organization uses to retrieve verified claims.
 
 ```json
 {
@@ -631,7 +631,7 @@ With blockchain-anchored DIDs, a Nigerian citizen can prove their identity to:
 - **Cross-border financial institutions** (remittances, banking)
 - **International education institutions** (admissions)
 
-The verifier resolves the DID, checks the blockchain anchor, and verifies the cryptographic proof — all without contacting Identrax servers.
+The verifier resolves the DID, checks the blockchain anchor, and verifies the cryptographic proof  all without contacting Identrax servers.
 
 ---
 
@@ -762,7 +762,7 @@ Unlike traditional credit bureaus that collect data without direct citizen invol
 1. **Requires explicit consent** for every data signal
 2. **Is transparent** — citizens see which signals contributed to their score
 3. **Is portable** — citizens can share their score with any organization
-4. **Uses alternative data** — utility payments, telco history, rent — not just formal credit
+4. **Uses alternative data** — utility payments, telco history, rent  not just formal credit
 
 ---
 
@@ -824,7 +824,7 @@ Nigeria's internet infrastructure, while improving, remains unreliable in rural 
 
 ### 12.2 Signed QR Tokens
 
-Identrax issues **offline verification tokens** — platform-signed QR codes that can be verified without an internet connection:
+Identrax issues **offline verification tokens**  platform-signed QR codes that can be verified without an internet connection:
 
 ```mermaid
 flowchart TB
@@ -1296,7 +1296,7 @@ Identrax does not compete with or replace NIMC. It:
 
 ## 21. Conclusion
 
-Nigeria stands at a critical inflection point in digital identity. The infrastructure exists — over 100 million NINs have been issued — but the **consent, privacy, and interoperability layers** are missing. Citizens are forced to surrender their personal data to every requesting institution, with no control over how it's used, stored, or shared.
+Nigeria stands at a critical inflection point in digital identity. The infrastructure exists over 100 million NINs have been issued but the **consent, privacy, and interoperability layers** are missing. Citizens are forced to surrender their personal data to every requesting institution, with no control over how it's used, stored, or shared.
 
 Identrax bridges this gap by:
 
@@ -1306,7 +1306,7 @@ Identrax bridges this gap by:
 4. **Building for Nigerian realities** — offline capability, mobile-first, low-bandwidth-friendly
 5. **Preparing for the future** — blockchain anchoring, zero-knowledge proofs, and cross-border interoperability
 
-The technical architecture is built, the 18 domain modules are implemented, and the platform is ready for pilot deployment. Identrax is not just a product — it's a paradigm shift in how identity works in Nigeria.
+The technical architecture is built, the 18 domain modules are implemented, and the platform is ready for pilot deployment. Identrax is not just a product it's a paradigm shift in how identity works in Nigeria.
 
 **Identity is a right, not a product. Identrax makes it so.**
 
