@@ -42,7 +42,7 @@ The NIMC Act 2026 (signed 27 June 2026) changes three things that have direct ar
 | NIN mandatory across banking, telecoms, land, pensions, insurance, tax | The Verification Core must resolve claims across **more source types than NIN alone**, and the assurance model must serve verticals (land, pensions) that need L4/L5. See §3, §8. |
 | NIMC will **intensify audits** of third-party integrators | Audit export and compliance posture become first-class subsystems, not logging side-effects. See §4. |
 | 5-year minimum sentence, ₦20M corporate fines for identity misuse | Processor-only data governance and blast-radius containment move from "good practice" to "architectural invariant." See §9. |
-| Special enrolment measures for vulnerable groups (regs pending) | A **provisional, sub-NIN assurance tier (L0)** is required to say "yes" to not-yet-verified users defensibly. See §8. |
+| Special enrolment measures for vulnerable groups (regs pending) | A **provisional eligibility tier (L0)** can hold a user in a non-authoritative state until NIN verification completes, so a client can say "yes" defensibly. NIN remains the sole root; L0 is a consent-layer eligibility state, not an independent identity authority. See §8. |
 
 The v1.0 architecture was *designed for* a compliance regime that had not yet arrived. v2.0 is designed for the regime that now exists.
 
@@ -85,7 +85,7 @@ flowchart TB
 - **Compliance Operating Layer** is retention: it absorbs regulatory change so the client's integration never needs a code change when a rule moves.
 - **Risk Intelligence Network** is the moat: value compounds with every organization added, and no member ever sees another's raw data.
 
-The layers are deployed inside the same modular monolith (Go 1.24, Fiber, ent, PostgreSQL 16, Redis 7) described in whitepaper §15. The layering is a **trust and data-governance boundary**, not a network boundary — Layer 3 must never be able to read Layer 1's raw resolution inputs.
+The layers are deployed inside the same modular monolith (Rust with Axum, Tokio, SQLx over PostgreSQL 16, and Redis 7), as detailed in the Engineering Blueprint. The layering is a **trust and data-governance boundary**, not a network boundary: Layer 3 must never be able to read Layer 1's raw resolution inputs.
 
 ---
 
@@ -177,7 +177,7 @@ The moat. Cross-organization fraud signal **without raw PII exchange between org
 
 ### 5.1 Privacy-preserving signal exchange
 
-When an identity or device pattern is flagged as high-risk at one member institution, risk scoring rises at another **without either institution seeing the other's underlying data**. This is achieved by never exchanging PII in the first place — only irreversible, salted signal.
+When an identity or device pattern is flagged as high-risk at one member institution, risk scoring rises at another **without either institution seeing the other's underlying data**. This is achieved by never exchanging PII in the first place, only keyed, non-reversible signal.
 
 ```mermaid
 flowchart TB
@@ -185,7 +185,7 @@ flowchart TB
         A1["Flags device pattern as fraud"]
     end
     subgraph RIN["Risk Intelligence Network"]
-        H["Salted, non-reversible signal tokens<br/>(HMAC of device/identity fingerprint)"]
+        H["Per-member keyed signal tokens<br/>(scoped, rotated, access-controlled)"]
         S["Signal store: token → risk weight, decay"]
     end
     subgraph OrgB["Member B"]
@@ -196,13 +196,22 @@ flowchart TB
     B1 -->|"query by token"| S -->|"risk score only"| B1
 ```
 
-- Fingerprints (device attestation, identity correlation features) are reduced to **salted HMAC tokens** before they enter the network. The pre-image never leaves the originating organization's boundary.
+- Fingerprints (device attestation, identity correlation features) are reduced to **keyed tokens** before they enter the network. The pre-image never leaves the originating organization's boundary.
 - The network returns a **risk score with decay**, not the flagging event, not the flagging institution, and never the underlying attributes.
 - Because the marginal cost of an additional member is near zero and the value to every existing member rises with each join, this is the compounding, hard-to-leave asset the strategy identifies.
 
-### 5.2 Isolation invariant
+### 5.2 The privacy boundary, stated as a threat model
 
-Layer 3 has **no read path** into Layer 1 raw inputs or Layer 2 PII. It ingests only signal tokens emitted through a one-way boundary. This is enforced at the module boundary (separate ent schemas, no shared repository access) and verified in the pre-scale security review (§13).
+A salted hash alone does not make this private. A device or identity fingerprint is low entropy, so a plain HMAC is open to offline brute-force, cross-organization correlation, and membership inference. We therefore treat the network's privacy as a set of controls, not a slogan:
+
+- **Per-member and per-purpose keying.** Tokens are derived under a key scoped to the emitting member and purpose, so the same subject does not produce a token that correlates across organizations. A member cannot enumerate another member's population.
+- **Key rotation.** Keys rotate on a schedule, with a bounded overlap window, so a leaked key has a limited blast radius and historical tokens age out of correlatability.
+- **Access control and query limits.** Cross-organization queries are authenticated, rate-limited, and logged, which blunts enumeration and membership-inference attacks that depend on high query volume.
+- **No plaintext at rest.** The signal store holds only keyed tokens and risk weights, never the underlying fingerprint.
+
+### 5.3 Isolation invariant
+
+Layer 3 has **no read path** into Layer 1 raw inputs or Layer 2 PII. It ingests only signal tokens emitted through a one-way boundary. This is enforced at the crate boundary (separate schemas, no shared repository access, compiler-checked dependencies) and verified in the pre-scale security review (§13).
 
 ---
 
