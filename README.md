@@ -1,1336 +1,547 @@
-# Identrax: A NIN-Anchored, Consent-Driven Digital Identity Platform for Nigeria
+# Identrax: An Organization-First Identity Risk Operating System for Regulated Africa
 
-**Whitepaper v1.0**
+**Whitepaper v2.0**
 
-*February 2026*
+*July 2026*
 
 ---
 
 ## Abstract
 
-Nigeria has over 220 million citizens, yet verifiable digital identity remains fragmented, centralized, and privacy-hostile. Financial institutions, telcos, employers, and government agencies each build isolated KYC silos, duplicating effort, increasing breach surface, and forcing citizens to surrender raw personal data to every requesting party with no visibility into how that data is used.
+Nigeria has over 220 million citizens, yet verifiable digital identity remains fragmented, centralized, and privacy-hostile. Financial institutions, telcos, insurers, employers, and government agencies each build isolated KYC silos, duplicating effort, increasing breach surface, and forcing citizens to surrender raw personal data to every requesting party with no visibility into how that data is used.
 
-**Identrax** is a NIN-anchored, mobile-wallet-based digital identity platform that fundamentally inverts this model. Instead of copying personal data to every verifier, Identrax places the citizen at the center: a cryptographic wallet on their device holds their identity credentials, and organizations can only access verified claims through time-limited, scope-restricted, user-approved consent grants. The platform never mints new identities, it anchors to Nigeria's existing National Identification Number (NIN) infrastructure, then layers privacy-preserving proofs, consent management, document signing, credit scoring, and blockchain-anchored decentralized identifiers on top.
+The National Identity Management Commission Act 2026, signed into law on 27 June 2026, changed the ground beneath this problem. It makes NIN verification mandatory across banking, telecoms, land, pensions, insurance, and tax, it names NIMC as the Root Certification Authority for Nigeria's national public key infrastructure, and it puts every organization that touches identity data on notice of tougher audits and severe penalties for getting it wrong. Overnight, identity compliance became a funded, board-level priority for every regulated institution in the country.
 
-This whitepaper presents the problem space, architectural philosophy, technical design, security model, economic analysis, and deployment roadmap for Identrax.
+**Identrax** is our answer. We are building an organization-first identity risk operating system that a bank, insurer, pension administrator, telco, land registry, or crypto platform integrates once and then never has to rebuild around the next NIMC directive, CBN circular, or NDPA amendment. We anchor to the citizen's existing NIN, we return verified claims rather than raw personal data, we capture the citizen's own cryptographically signed consent as legal evidence, and we operate strictly as a data processor rather than a controller so that we never recreate the duplication and breach-amplification problem we exist to solve.
+
+This whitepaper presents the problem space, our architectural philosophy, the three-layer product, the technical design, the security and privacy model, and our regulatory alignment. Where an earlier version of this document described a consumer wallet, this version reflects our repositioning to an organization-first platform and our move to a Rust backend.
 
 ---
 
 ## Table of Contents
 
-1. [The Problem](#1-the-problem)
-2. [Vision & Principles](#2-vision--principles)
-3. [System Overview](#3-system-overview)
-4. [Identity Model](#4-identity-model)
-5. [Consent Architecture](#5-consent-architecture)
-6. [Cryptographic Foundation](#6-cryptographic-foundation)
-7. [Verification Protocol](#7-verification-protocol)
-8. [Decentralized Identity Layer](#8-decentralized-identity-layer)
-9. [Zero-Knowledge Proofs](#9-zero-knowledge-proofs)
-10. [Credit Scoring Engine](#10-credit-scoring-engine)
-11. [AML/KYC Screening](#11-amlkyc-screening)
-12. [Offline Verification](#12-offline-verification)
-13. [Security Model](#13-security-model)
-14. [Privacy by Design](#14-privacy-by-design)
-15. [Platform Architecture](#15-platform-architecture)
-16. [Integration Model](#16-integration-model)
-17. [Economic Analysis](#17-economic-analysis)
-18. [Regulatory Alignment](#18-regulatory-alignment)
-19. [Competitive Landscape](#19-competitive-landscape)
-20. [Roadmap](#20-roadmap)
-21. [Conclusion](#21-conclusion)
-22. [References](#22-references)
+1. [The Problem and the Catalyst](#1-the-problem-and-the-catalyst)
+2. [Vision and Principles](#2-vision-and-principles)
+3. [Strategic Thesis: Three Layers](#3-strategic-thesis-three-layers)
+4. [System Overview and the Five Surfaces](#4-system-overview-and-the-five-surfaces)
+5. [Identity Model and Progressive Assurance](#5-identity-model-and-progressive-assurance)
+6. [Consent Architecture](#6-consent-architecture)
+7. [Cryptographic Foundation and PKI Alignment](#7-cryptographic-foundation-and-pki-alignment)
+8. [Verification Protocol](#8-verification-protocol)
+9. [Compliance Operating Layer](#9-compliance-operating-layer)
+10. [Risk Intelligence Network](#10-risk-intelligence-network)
+11. [Decentralized Identity and Zero-Knowledge Proofs](#11-decentralized-identity-and-zero-knowledge-proofs)
+12. [Credit Scoring and AML Screening](#12-credit-scoring-and-aml-screening)
+13. [Know Your Business and the Travel Rule Module](#13-know-your-business-and-the-travel-rule-module)
+14. [Offline Verification](#14-offline-verification)
+15. [Data Governance: Processor, Not Controller](#15-data-governance-processor-not-controller)
+16. [Security Model](#16-security-model)
+17. [Privacy by Design](#17-privacy-by-design)
+18. [Platform Architecture: the Rust Backend](#18-platform-architecture-the-rust-backend)
+19. [Integration Model and Developer Experience](#19-integration-model-and-developer-experience)
+20. [Economic Model](#20-economic-model)
+21. [Regulatory Alignment](#21-regulatory-alignment)
+22. [Competitive Landscape](#22-competitive-landscape)
+23. [Roadmap](#23-roadmap)
+24. [Conclusion](#24-conclusion)
+25. [References](#25-references)
 
 ---
 
-## 1. The Problem
+## 1. The Problem and the Catalyst
 
-### 1.1 Identity Fragmentation in Nigeria
+### 1.1 Identity fragmentation
 
-Nigeria's identity ecosystem is deeply fragmented. Citizens interact with multiple identity systems. NIN, BVN (Bank Verification Number), voter's card, driver's license, international passport, each maintained by different agencies with limited interoperability. Verifying a citizen's identity requires organizations to independently connect to each data source, creating redundant infrastructure and inconsistent experiences.
+Nigeria's identity ecosystem is deeply fragmented. Citizens interact with multiple identity systems, NIN, BVN, voter's card, driver's license, and international passport, each maintained by different agencies with limited interoperability. Verifying a citizen requires organizations to independently connect to each source, creating redundant infrastructure and inconsistent experiences.
 
-### 1.2 The KYC Duplication Problem
+### 1.2 The KYC duplication problem
 
-Every bank, fintech, telco, and government service runs its own KYC process. A single Nigerian citizen may complete KYC dozens of times across their financial and civic life, each time surrendering the same raw personal data, name, date of birth, address, photograph, NIN, to yet another database. This creates:
+Every bank, fintech, telco, insurer, and government service runs its own KYC process. A single citizen may complete KYC dozens of times, each time surrendering the same raw personal data to yet another database. This creates data duplication across hundreds of databases with varying security postures, amplifies every breach, leaves citizens with no visibility into who holds their data, and forces every organization to bear the full cost of verification infrastructure.
 
-- **Data duplication**: The same PII exists in hundreds of databases with varying security postures.
-- **Breach amplification**: Each copy is a potential breach point. A breach at any one institution exposes data collected from many.
-- **Citizen powerlessness**: Individuals have no visibility into which organizations hold their data, for what purpose, or for how long.
-- **High compliance cost**: Each organization bears the full cost of verification infrastructure, data storage, and regulatory compliance.
+### 1.3 The trust deficit
 
-### 1.3 The Trust Deficit
+Current verification APIs return raw personal data to the requesting organization. Once data leaves the authoritative source, there is no way to restrict what the organization does with it, limit retention, notify the citizen, or revoke access after the purpose is served. This is a fundamental trust deficit between citizens and institutions.
 
-Current verification APIs return raw personal data to the requesting organization. Once data leaves the authoritative source, there is no mechanism to:
+### 1.4 Financial exclusion
 
-- Restrict what the organization does with it
-- Limit how long they retain it
-- Notify the citizen when their data is accessed
-- Revoke access after the original purpose is fulfilled
+A large share of Nigerian adults remain unbanked or underbanked, and the cost and friction of identity verification is a significant driver. A portable, reusable identity that lets a regulated business say yes to a customer today, while staying defensible, directly expands inclusion.
 
-This creates a fundamental trust deficit between citizens and institutions.
+### 1.5 The catalyst: the NIMC Act 2026
 
-### 1.4 Financial Exclusion
+The Act reframed all of the above from a slow structural problem into an urgent, funded one. We read five provisions as directly shaping what we build and how we sell it.
 
-An estimated 36% of Nigerian adults remain unbanked or underbanked. A significant driver is the difficulty and cost of identity verification. Rural populations face physical barriers to NIN enrollment, and the multi-step, in-person KYC process deters adoption of formal financial services. A portable, reusable digital identity that reduces verification friction can directly expand financial inclusion.
-
-### 1.5 The Cross-Border Identity Gap
-
-As Nigerian citizens travel, work, and transact internationally, their domestically-anchored identity credentials have no portable, machine-verifiable format. Embassies, foreign employers, and international institutions have no standardized way to verify Nigerian identity claims, forcing expensive manual processes.
+| Act provision | What it means for us |
+|---------------|----------------------|
+| NIMC named Root Certification Authority for national PKI | Our platform signing key must chain to NIMC rather than stand as an independent trust root. |
+| NIN mandatory across banking, telecoms, land, pensions, insurance, tax | Our addressable surface expands well past fintech KYC into several newly obligated verticals. |
+| NIMC will intensify audits of third-party integrators | Audit export and compliance posture become core, sellable products rather than logging side-effects. |
+| Minimum five-year sentences and fines up to ₦20 million for identity misuse | Every regulated institution now has a funded, board-level reason to buy compliance protection. |
+| Special enrolment measures promised for vulnerable groups, regulations pending | Our progressive assurance model is a ready-made technical answer to a question NIMC has committed to solving. |
 
 ---
 
-## 2. Vision & Principles
+## 2. Vision and Principles
 
 ### 2.1 Vision
 
-**A Nigeria where every citizen controls their own verified identity, where organizations can verify without collecting, and where identity is a right, not a product.**
+We want a Nigeria where every regulated institution can verify identity without collecting it, where the citizen's consent is explicit and provable, and where identity compliance is something an organization plugs into once rather than rebuilds with every new directive.
 
-Identrax envisions a world where:
-
-- A citizen opens a bank account by approving a 30-second consent request on their phone, no paperwork, no photocopies, no branch visit.
-- A landlord verifies a prospective tenant's employment without ever seeing their payslip.
-- An employer confirms a degree without accessing the full academic transcript.
-- A citizen travelling abroad proves their identity to immigration authorities using a cryptographically-signed, blockchain-anchored digital credential.
-- All of this happens with the citizen's explicit, informed, revocable consent.
-
-### 2.2 Core Principles
+### 2.2 Core principles
 
 | # | Principle | Description |
 |---|-----------|-------------|
-| 1 | **NIN is the root** | We do not mint new identities. Every Identrax identity is anchored to a verified NIN. |
-| 2 | **Keys never leave the device** | The backend stores only public keys. Private keys are generated and held in the device's secure keystore (TEE/Secure Enclave). |
-| 3 | **No passwords, ever** | All authentication is cryptographic challenge-response. No shared secrets. |
-| 4 | **Consent is explicit, scoped, and revocable** | Every data access requires a fresh, purpose-bound, time-limited consent grant that the citizen can revoke at any time. |
-| 5 | **Proofs over PII** | APIs return verified boolean claims ("NIN is verified", "age ≥ 18"), not raw personal data, unless the citizen explicitly consents to more. |
-| 6 | **Immutable audit trail** | Every sensitive operation — consent, verification, signing creates an immutable audit event visible to the citizen. |
-| 7 | **Offline-capable** | Core identity verification works without internet through signed QR codes. |
-| 8 | **Never sell data** | The platform will never sell, trade, or monetize personal identity data. |
+| 1 | NIN is the sole root | We do not mint identities. Every Identrax identity anchors to a verified NIN. |
+| 2 | Keys never leave the device | We store only public keys. Private keys live in the device secure keystore. |
+| 3 | No passwords, ever | All authentication is cryptographic challenge and response. No shared secrets. |
+| 4 | Consent is explicit, scoped, and revocable | Every access requires a fresh, purpose-bound, time-limited grant the citizen can revoke. |
+| 5 | Proofs over PII | We return verified boolean claims, not raw personal data, unless the citizen explicitly consents to more. |
+| 6 | Immutable audit trail | Every sensitive operation writes an immutable audit event the citizen can see. |
+| 7 | Processor, not controller | We resolve and attest to claims. We do not become the system of record for aggregated PII. |
+| 8 | Offline-capable | Core verification works without internet through signed QR codes. |
+| 9 | Never sell data | We will never sell, trade, or monetize personal identity data. |
 
-### 2.3 Non-Goals
+### 2.3 Non-goals
 
-The platform will **never**:
-
-- Sell raw identity data
-- Run social or political scoring
-- Serve advertising
-- Perform behavioral surveillance
-- Replace NIN or any government identity system
-- Store biometric templates (only attestation hashes)
+We will never sell raw identity data, run social or political scoring, serve advertising, perform behavioral surveillance, replace NIN or any government identity system, or store biometric templates. We are also explicitly **not** building a consumer wallet that depends on citizens independently discovering and adopting an app before we can earn revenue, and we are not building a data warehouse that aggregates identity documents across sources.
 
 ---
 
-## 3. System Overview
+## 3. Strategic Thesis: Three Layers
 
-Identrax is a three-sided platform connecting **citizens**, **organizations**, and **administrators** through a unified identity verification gateway.
+We build in three layers. Each has a distinct job in how we land, retain, and defend a client.
+
+- **Verification Core** is our wedge. It is the fast, low-cost yes that a compliance officer can approve without a committee.
+- **Compliance Operating Layer** is our retention product. It delivers audit-ready reporting, a live compliance posture, and a policy engine that absorbs regulatory change so a client's integration never needs a code change when a rule moves.
+- **Risk Intelligence Network** is our moat. It shares cross-organization fraud signal that grows more valuable for every member as more organizations join, without any organization ever seeing another's raw data.
+
+### 3.1 Why organization-first over a two-sided platform
+
+A wallet-first model needs citizens to adopt an app on their own, organizations to integrate on their own, and both sides to reach density before consent feels normal. That is three adoption curves to climb before any revenue. By selling to the organization first, we collapse this into one motion. The organization pays us, drives its own customers through onboarding, and our consent and proof layer ships invisibly inside a flow the organization already owns. The citizen-side cryptographic capability is still essential, because signed consent is what makes our compliance guarantee real, but it reaches the citizen embedded in the organization's product rather than as a destination app they must find (see Section 6.4).
+
+---
+
+## 4. System Overview and the Five Surfaces
+
+We organize the platform around who is talking to us. There are five surfaces, each with its own authentication and, in most cases, its own frontend.
 
 ```mermaid
-flowchart LR
-    %% External Actors
-    Citizen["Citizen<br/>Mobile Wallet"]
-    Org["Organisation<br/>(Bank, Telco, Employer)"]
+flowchart TB
+    Org["Regulated Organisation<br/>(Bank, Insurer, Telco, Pension, Land Registry, VASP)"]
+    Citizen["Citizen<br/>(embedded consent, thin optional wallet)"]
     Admin["Admin Console"]
+    Reg["Regulator (NIMC / NDPC / CBN)"]
+    Verifier["Public Verifier"]
 
-    %% Identrax Platform Boundary
     subgraph IDENTRAX["IDENTRAX PLATFORM"]
         direction TB
-
-        %% Core Modules (Row 1)
-        Wallet["Wallet Module"]
-        Consent["Consent Engine"]
-
-        %% Core Modules (Row 2)
-        Identity["Identity Anchor"]
-        Proof["Proof Engine"]
-
-        %% Core Modules (Row 3)
-        Crypto["Crypto Layer"]
-        Audit["Audit Trail"]
-
-        %% Integrations (Row 4)
-        Blockchain["Blockchain Anchor"]
-        NIMC["NIMC Connector"]
+        L1["Layer 1: Verification Core"]
+        L2["Layer 2: Compliance Operating Layer"]
+        L3["Layer 3: Risk Intelligence Network"]
+        L1 --> L2 --> L3
     end
 
-    %% Connections
-    Citizen --> Wallet
-    Citizen --> Consent
+    NIMC["NIMC Root CA + NINAuth"]
 
-    Org --> Consent
-    Org --> Proof
-
-    Admin --> Audit
-    Admin --> Identity
-
-    %% Internal Relationships
-    Wallet --> Identity
-    Consent --> Proof
-    Identity --> Crypto
-    Proof --> Crypto
-    Crypto --> Audit
-    Identity --> Blockchain
-    Identity --> NIMC
-
+    Org --> L1
+    Citizen --> L1
+    Admin --> L2
+    Reg --> L2
+    Verifier --> L1
+    L1 -.->|"subordinate cert + NIN resolve"| NIMC
 ```
 
-### 3.1 Platform Components
+| Surface | Who it is | How it authenticates |
+|---------|-----------|----------------------|
+| Wallet | The citizen, through an embedded SDK or a thin optional app | Ed25519 challenge and response, device-bound keys |
+| Organization | A regulated institution | OAuth client credentials, short-lived access token |
+| Admin | Our operations team | Rotating admin key, IP allowlist, per-action audit |
+| Regulator | NIMC, NDPC, or CBN auditors | Regulator-scoped, read-only credential |
+| Public verifier | Anyone verifying a proof, DID, or offline token | No account needed; signature checks do the work |
 
-| Component | Description |
-|-----------|-------------|
-| **Citizen Wallet** | Flutter mobile app (Android/iOS) with secure keystore, biometric auth, QR scanning |
-| **API Gateway** | Go-based REST API with modular monolith architecture (18 domain modules) |
-| **Organisation Portal** | React web dashboard for managing verifications, webhooks, and integrations |
-| **Admin Dashboard** | React web dashboard for platform operations, org management, and monitoring |
-| **NIMC Connector** | Integration layer for NIN verification with the National Identity Management Commission |
-| **Blockchain Connector** | Polygon (EVM) integration for anchoring DID proofs and cross-border credentials |
+A wallet token can never call an organization endpoint, an organization token can never reach admin, and a regulator credential is read-only by construction.
 
 ---
 
-## 4. Identity Model
+## 5. Identity Model and Progressive Assurance
 
-### 4.1 NIN Anchoring
+### 5.1 NIN anchoring
 
-Every Identrax identity begins with a verified NIN. The registration flow:
+Every Identrax identity begins with a verified NIN. We create a cryptographic binding between the citizen's device-held keys and their government-issued NIN. We do not build a parallel identity database.
 
-```mermaid
-flowchart LR
-    Citizen["Citizen enters<br/>NIN in Wallet"]
-    NIMC["NIMC verifies<br/>NIN is valid<br/>+ returns biographic data"]
-    Anchor["Identity Anchor created<br/>(NIN hashed,<br/>encrypted)"]
+| Field | Storage method | Purpose |
+|-------|----------------|---------|
+| NIN | SHA-256 hash | Lookup and deduplication |
+| NIN (last 4) | Plaintext | Display hint for the citizen |
+| NIN (full) | AES-256-GCM encrypted | Recovery and re-verification, optional |
+| Name, DOB, and so on | Not stored | Retrieved on demand via NIMC with consent |
 
-    Citizen --> NIMC
-    NIMC --> Anchor
+### 5.2 Progressive assurance
 
-```
+We treat assurance as a ramp, not a floor. A regulated client can onboard a customer today at a low tier, stay defensible under the Act, and let us upgrade the customer automatically as their verification deepens, rather than forcing a binary comply-or-exclude decision at account opening.
 
-**What we store:**
+| Level | Requirement | What it means |
+|-------|-------------|---------------|
+| **L0 (provisional)** | Alternative-signal eligibility (phone, address intelligence, telco or utility signal) before NIN verification completes | A non-authoritative holding state that lets a client say yes with capped limits. NIN remains the sole root; L0 is a consent-layer eligibility state, not an independent identity authority. |
+| L1 | NIN verified via NIMC | CBN Tier 1 |
+| L2 | L1 plus device-bound hardware-attested keys | Binds identity to a specific device |
+| L3 | L2 plus biometric or PIN-verified action | CBN Tier 2, higher limits |
+| L4 | L3 plus verified address | Unlocks land, insurance, higher-tier banking |
+| L5 | L4 plus verified employment or income | Lending, credit, pensions |
+| L6 | L5 plus continuous risk monitoring | Feeds the Risk Intelligence Network |
 
-| Field | Storage Method | Purpose |
-|-------|---------------|---------|
-| NIN | SHA-256 hash | Lookup & deduplication |
-| NIN (last 4) | Plaintext | Display hint for citizen |
-| NIN (full) | AES-256-GCM encrypted | Recovery & re-verification (optional) |
-| Name, DOB, etc. | Not stored | Retrieved on-demand via NIMC with consent |
+L0 is our technical answer to the Act's promised vulnerable-groups provision, and it is a story regulators want to hear. It carries explicit safeguards: capped transaction limits, mandatory upgrade prompts, and a hard expiry after which the account cannot transact until it reaches L1. To keep the citizen burden matched to the value at stake, L0 and L1 can be satisfied with a light, server-mediated confirmation, while the full device-key ceremony and biometric-gated signing are required from L2 upward, where transaction value and fraud exposure justify them.
 
-The platform **does not create a parallel identity database**. It creates a cryptographic binding between the citizen's device-held keys and their government-issued NIN.
+### 5.3 Device-bound keys
 
-### 4.2 Assurance Levels
-
-Identity claims carry progressive assurance levels, each building on the previous:
-
-```mermaid
-flowchart TB
-    subgraph ASSURANCE["ASSURANCE LADDER"]
-        direction TB
-
-        L1["L1 — NIN verified"]
-        L2["L2 — Device-bound wallet<br/>with attested keys"]
-        L3["L3 — Biometric / PIN-verified action"]
-        L4["L4 — Verified address<br/>(Phase 2)"]
-        L5["L5 — Verified employment + income<br/>(Phase 3)"]
-        L6["L6 — Continuous risk monitoring<br/>(Phase 4)"]
-
-        L1 --> L2 --> L3 --> L4 --> L5 --> L6
-    end
-
-    Org["Organisation verification request"]
-    Org -->|"Requests minimum<br/>assurance level"| L3
-
-```
-
-| Level | Requirement | What it Proves |
-|-------|-----------|---------------|
-| **L1** | NIN verified via NIMC | Person is who they claim to be |
-| **L2** | L1 + device-bound wallet with hardware-attested keys | Identity is bound to a specific physical device |
-| **L3** | L2 + biometric or PIN-verified action | The person holding the device authorized this specific action |
-| **L4** | L3 + verified address | Person has a confirmed physical location |
-| **L5** | L4 + verified employment/income | Person has confirmed economic standing |
-| **L6** | L5 + continuous risk signals | Ongoing confidence in identity validity |
-
-### 4.3 Device-Bound Keys
-
-Each citizen device holds two asymmetric keypairs:
-
-```mermaid
-flowchart TB
-    subgraph TEE["DEVICE KEYSTORE<br/>(TEE / Secure Enclave)"]
-        direction TB
-
-        AuthKey["AUTH KEY (PIN 1)<br/>
-        Algorithm: Ed25519<br/>
-        Purpose: Login & consent approval<br/>
-        Activation: Biometric / PIN"]
-
-        SignKey["SIGNING KEY (PIN 2)<br/>
-        Algorithm: Ed25519<br/>
-        Purpose: Document signing<br/>
-        Activation: Separate PIN / biometric"]
-    end
-
-    Backend["Backend Services"]
-
-    AuthKey -.->|"Public key only"| Backend
-    SignKey -.->|"Public key only"| Backend
-
-```
-
-This follows the **Smart-ID model** (widely deployed in Estonia) where two-key separation ensures that consent approval and document signing have distinct authorization channels a compromise of one key does not compromise the other.
-
-### 4.4 Profile Data Model
-
-Citizens can enrich their identity with verifiable credentials:
-
-```mermaid
-flowchart TB
-    User["USER"]
-
-    Addresses["Addresses<br/>
-    • line1<br/>
-    • city<br/>
-    • state<br/>
-    • geo<br/>
-    • verification status"]
-
-    LinkedIDs["Linked IDs<br/>
-    • BVN<br/>
-    • Passport<br/>
-    • Driver’s License<br/>
-    • verification status"]
-
-    Education["Education Credentials<br/>
-    • degree<br/>
-    • school<br/>
-    • class<br/>
-    • dates<br/>
-    • verification status"]
-
-    Vault["Vault Documents<br/>
-    • uploaded files<br/>
-    • encrypted<br/>
-    • versioned"]
-
-    Attestations["ATTESTATIONS<br/>(Organisation-signed proofs<br/>of verification)"]
-
-    %% Relationships
-    User --> Addresses
-    User --> LinkedIDs
-    User --> Education
-    User --> Vault
-
-    Addresses --> Attestations
-    LinkedIDs --> Attestations
-    Education --> Attestations
-    Vault --> Attestations
-
-```
-
-Each profile field can be independently attested by an authorized organization, creating a web of trust without a central authority.
+Each citizen device holds two Ed25519 keypairs in the secure keystore: an auth key gated by one PIN or biometric for login and consent, and a separate signing key gated by a second PIN for document signing. We hold only the public keys. This follows the Smart-ID two-key separation model, so a compromise of one key does not compromise the other.
 
 ---
 
-## 5. Consent Architecture
+## 6. Consent Architecture
 
-Consent is the cornerstone of Identrax. No data flows without explicit, informed, purpose-bound citizen approval.
+Consent is the cornerstone. No data flows without an explicit, informed, purpose-bound approval that the citizen signs.
 
-### 5.1 Consent Properties
+### 6.1 Consent properties
 
-Every consent grant has:
+Every grant carries the exact scopes it covers, the purpose it is for, a duration, immediate revocability, and a cryptographic binding: the citizen signs the grant with their auth key, which makes it non-repudiable.
 
-| Property | Description |
-|----------|-------------|
-| **Scopes** | Exactly which data fields are accessible (e.g., `nin_verified`, `address_state`) |
-| **Purpose** | Why the data is being requested (e.g., `loan_application`, `kyc_aml`) |
-| **Duration** | How long the consent is valid (one-time, time-limited, or ongoing) |
-| **Revocability** | Citizen can revoke at any time; revocation is immediate and audited |
-| **Cryptographic binding** | Consent is signed by the citizen's auth key, creating non-repudiable proof |
-
-### 5.2 Consent Flow
+### 6.2 Consent flow
 
 ```mermaid
 sequenceDiagram
     participant Org as Organisation
-    participant Idx as Identrax Platform
-    participant Wallet as Citizen Wallet
-
-    %% Step 1
-    Org ->> Idx: POST /verification-request\n{ scopes, purpose, assurance }\n"I need to verify this person"
-
-    %% Step 2
-    Idx ->> Wallet: Create ConsentRequest\nPush notification
-
-    %% Step 3
-    Note right of Wallet: Citizen reviews request:\n• NIN validity\n• Full name\n• Date of birth\nPurpose: Account opening\nDuration: One-time
-
-    %% Step 4
-    Wallet ->> Idx: Approve consent\nBiometric / PIN\nSigned with Auth Key
-
-    %% Step 5
-    Idx ->> Idx: Create ConsentGrant (signed)\nCreate ProofToken (time-limited)\nWrite AuditEvent (immutable)
-
-    %% Step 6
-    Idx -->> Org: Webhook: consent.approved\n{ proof_token }
-
-    %% Step 7
-    Org ->> Idx: GET /proofs/{token}
-
-    %% Step 8
-    Idx -->> Org: { verified claims }\nONLY consented scopes\nToken expires after 10 minutes
-
+    participant Idx as Identrax
+    participant Wallet as Citizen (embedded consent)
+    Org->>Idx: POST /v2/org/verifications { scopes, purpose, min_assurance }
+    Idx->>Wallet: consent request appears inside the org's own flow
+    Wallet->>Idx: Approve, signed with the auth key, biometric or PIN
+    Idx->>Idx: Mint proof token, write audit event under the current policy version
+    Idx-->>Org: webhook consent.approved { proof_token }
+    Org->>Idx: GET /v2/org/proofs/{token}
+    Idx-->>Org: verified claims, only the consented scopes
 ```
 
-### 5.3 Scope Registry
+### 6.3 Durable consent and the reuse policy
 
-Scopes follow a hierarchical naming convention:
+A live question under the Act is whether a verified claim may be reused, or whether every verification demands a fresh live NINAuth call. We do not hard-code an answer. Every cached or attested claim carries a reuse policy from the policy engine, one of live-only, durable for a window, or durable until revoked. The Verification Core consults this policy before serving a claim, so flipping a purpose or a source from durable to live-only is a configuration change, not a code change. This makes the durable-consent question a switch we can throw per regulator ruling, and it gives us a working model to bring to the table as a technical stakeholder while the regulations are drafted.
 
-```mermaid
-flowchart TB
-    subgraph IDENTITY["Identity Claims"]
-        id1["identity.nin_verified<br/>Boolean<br/>NIN is verified"]
-        id2["identity.name<br/>String<br/>Full name<br/>(strong consent)"]
-        id3["identity.name_match<br/>Boolean<br/>Name matches provided value"]
-        id4["identity.dob<br/>Date<br/>Date of birth<br/>(strong consent)"]
-        id5["identity.age_over_18<br/>Boolean<br/>Person is over 18"]
-        id6["identity.phone_verified<br/>Boolean<br/>Phone is verified"]
-    end
+### 6.4 The citizen surface: embedded first, thin wallet second
 
-    subgraph ADDRESS["Address Claims"]
-        ad1["address.verified<br/>Boolean<br/>Address is verified"]
-        ad2["address.state<br/>String<br/>State of residence only"]
-    end
-
-    subgraph LINKED["Linked ID Claims"]
-        li1["linked_id.bvn.verified<br/>Boolean<br/>BVN is verified"]
-    end
-
-    subgraph EDUCATION["Education Claims"]
-        ed1["education.verified<br/>Boolean<br/>Has verified credential"]
-    end
-
-    subgraph RISK["Risk & Screening"]
-        cr1["credit.score<br/>Object<br/>Score + band"]
-        sc1["screening.aml<br/>Object<br/>AML screening result"]
-    end
-
-```
-
-The scope system enforces **data minimization**: an organization requesting age verification receives only `true` or `false`, never the actual date of birth.
-
-### 5.4 Consent Purposes
-
-| Purpose | Description | Typical Scopes |
-|---------|-------------|---------------|
-| `identity_verification` | General identity check | `nin_verified`, `name` |
-| `account_opening` | Bank/fintech onboarding | `nin_verified`, `name`, `dob`, `address` |
-| `loan_application` | Credit assessment | `nin_verified`, `credit.score`, `employment` |
-| `employment_verification` | Employer background check | `nin_verified`, `education`, `name` |
-| `kyc_aml` | Compliance screening | `nin_verified`, `screening.aml`, `name` |
-| `age_verification` | Age gate | `age_over_18` or `age_over_21` |
-| `visa_application` | Immigration verification | `nin_verified`, `name`, `address`, `employment` |
+The consent moment is white-labeled inside the client's own onboarding flow. The end customer sees their bank's brand asking clearly to confirm a small, specific set of things about them, nothing more. We deliver this primarily as an embedded SDK and a drop-in web widget, so the citizen never has to find or adopt a separate app. We also keep a thin, optional standalone wallet, but not as a growth engine. It exists mainly to satisfy the data-subject rights the law already requires, letting a citizen see who accessed their data and revoke it, and to offer cross-organization portability for citizens who want one place to manage every consent they have granted.
 
 ---
 
-## 6. Cryptographic Foundation
+## 7. Cryptographic Foundation and PKI Alignment
 
-### 6.1 Overview
+### 7.1 Challenge and response
+
+All sensitive operations use a single-use cryptographic challenge. The server issues a challenge with a nonce, an expiry, an audience, and an action type, held in Redis with a short TTL. The client signs it with the device key, the server verifies against the device public key and consumes the challenge atomically. This eliminates password attacks (there are no passwords), replay attacks (challenges are single-use), and session hijacking (signatures are device-bound).
+
+### 7.2 Tokens and encryption
+
+We use PASETO v4.local for session tokens, which removes the algorithm-confusion and `alg: none` classes of attack that afflict JWT. We store only the SHA-256 hash of a token, so a database breach does not expose valid sessions. We hash with SHA-256, and we protect data at rest with AES-256-GCM envelope encryption.
+
+### 7.3 PKI subordination to NIMC's Root CA
+
+This is the most important cryptographic change from our earlier design. Because the Act names NIMC as the Root Certification Authority, our platform signing key can no longer present as an independent trust root. We move our signing key to a subordinate or cross-certified position under NIMC's root, so that proof tokens, offline credentials, and our DID method chain to the national anchor rather than standing parallel to it.
 
 ```mermaid
 flowchart TB
-    subgraph CRYPTO["CRYPTOGRAPHIC LAYERS"]
-        direction TB
-
-        IB["IDENTITY BINDING<br/>
-        • Ed25519 keypairs (per-device, hardware-backed)<br/>
-        • Challenge–response (no shared secrets)"]
-
-        DP["DATA PROTECTION<br/>
-        • SHA-256 hashing (NIN, tokens, documents)<br/>
-        • AES-256-GCM envelope encryption<br/>(NIN, webhook secrets)"]
-
-        SM["SESSION MANAGEMENT<br/>
-        • PASETO v4.local tokens (symmetric, not JWT)<br/>
-        • Only SHA-256 hashes stored server-side"]
-
-        IN["INTEGRITY & NON-REPUDIATION<br/>
-        • Ed25519 platform signing key<br/>(proof tokens, QR codes)<br/>
-        • HMAC-SHA256 webhook signing<br/>
-        • Blockchain anchoring (Polygon)"]
-
-        PR["PRIVACY<br/>
-        • Zero-knowledge proofs (age, credit band)<br/>
-        • Selective disclosure via scoped consent"]
-
-        IB --> DP --> SM --> IN --> PR
-    end
-
+    Root["NIMC Root CA"]
+    Sub["Identrax Subordinate CA<br/>(platform signing key, cross-certified)"]
+    Artifacts["Proof tokens · Offline QR · did:identrax credentials"]
+    Root --> Sub --> Artifacts
+    Verifier["Relying party or regulator"] -->|"validate chain to NIMC root"| Artifacts
 ```
 
-### 6.2 Challenge-Response Protocol
-
-All sensitive operations (login, consent, signing) use a single-use cryptographic challenge:
-
-```
-1. Server generates: { challenge_id, nonce, expires_at, audience, action_type }
-2. Challenge stored in Redis with TTL (5 minutes)
-3. Client signs: SHA-256(challenge_id : nonce : type : audience : payload_hash : expires_at)
-4. Client sends: { challenge_id, signature }
-5. Server: fetches challenge from Redis (atomic get-and-delete)
-   → verifies signature against device's public key
-   → verifies challenge hasn't expired
-   → challenge is consumed (single-use)
-```
-
-This eliminates:
-- **Password-based attacks** (no passwords exist)
-- **Replay attacks** (challenges are single-use)
-- **Session hijacking** (signatures are bound to specific devices)
-
-### 6.3 Why PASETO Over JWT
-
-| Property | JWT | PASETO v4.local |
-|----------|-----|----------------|
-| Algorithm agility | Yes (danger) | No (fixed AES-256-CTR + HMAC) |
-| `alg: none` attack | Possible | Impossible |
-| Key confusion attack | Possible | Impossible |
-| Implementation footguns | Many | Minimal |
-| Standard | RFC 7519 | IETF draft, widely audited |
-
-Identrax uses PASETO v4.local (symmetric encryption) for session tokens. The server never stores the raw token only its SHA-256 hash, so even a database breach does not expose valid session tokens.
+We migrate without breaking existing verifiers. In a dual-anchor phase, proof tokens carry both our signature and, once available, the chain to the NIMC-issued subordinate certificate. On-chain anchoring is retained for tamper-evidence and cross-border resolution, but it is explicitly secondary to the NIMC chain for trust inside Nigeria.
 
 ---
 
-## 7. Verification Protocol
+## 8. Verification Protocol
 
-### 7.1 Proof Tokens
+### 8.1 Proof tokens
 
-When a citizen approves a consent request, the platform issues a **Proof Token**  a short-lived, scope-bound, platform-signed artifact that the requesting organization uses to retrieve verified claims.
+When a citizen approves a request, we issue a short-lived, scope-bound, platform-signed proof token that the organization uses to retrieve verified claims.
 
 ```json
 {
   "sub": "user:01HXM3NDEKTSV4RRFFQ69G5FAV",
-  "aud": "org:first_bank",
-  "scopes": ["nin_verified", "name", "dob"],
-  "claims": {
-    "nin_verified": true,
-    "name": "Chidozie Okafor",
-    "dob": "1990-05-15"
-  },
+  "aud": "org:example_bank",
+  "scopes": ["nin_verified", "name_match", "age_over_18"],
+  "claims": { "nin_verified": true, "name_match": true, "age_over_18": true },
   "assurance_level": "L3",
-  "issued_at": "2026-02-08T12:00:00Z",
-  "expires_at": "2026-02-08T12:10:00Z",
+  "issued_at": "2026-07-01T12:00:00Z",
+  "expires_at": "2026-07-01T12:10:00Z",
   "proof_signature": "base64url(Ed25519(platform_key, payload))"
 }
 ```
 
-**Properties:**
-- **Time-limited**: Expires after 10 minutes (configurable)
-- **Scope-bound**: Contains only the claims the citizen consented to
-- **Platform-signed**: Ed25519 signature proves the claims come from Identrax
-- **Single-use**: Consumed on first access (optional, per org configuration)
-- **Audited**: Every access is logged in the immutable audit trail
+The token is time-limited, scope-bound, platform-signed, optionally single-use, and every access is written to the immutable audit trail.
 
-### 7.2 Document Signing
+### 8.2 Document signing
 
-Organizations can request citizens to digitally sign documents (contracts, agreements, consent forms):
-
-```
-1. Org uploads document hash + metadata → Platform
-2. Platform creates SignedDocument (status: awaiting_signature)
-3. Citizen receives push notification → opens sign request in wallet
-4. Citizen reviews document → approves with Signing Key (PIN 2)
-5. Wallet signs: Ed25519(sign_private_key, document_hash)
-6. Platform verifies signature → creates verification bundle:
-   {
-     document_hash,
-     signer_public_key,
-     signature,
-     timestamp,
-     device_attestation,
-     platform_countersignature
-   }
-7. Organization can independently verify the bundle
-```
+Organizations can request a citizen to sign a document. We store the document hash, the citizen approves with their signing key (the second PIN), and we produce a verification bundle containing the document hash, the signer public key, the signature, a timestamp, a device attestation, and our countersignature, which the organization can verify independently.
 
 ---
 
-## 8. Decentralized Identity Layer
+## 9. Compliance Operating Layer
 
-### 8.1 Why DID?
+This is the layer that keeps a client with us. It turns the audit trail from a passive log into three active products.
 
-Decentralized Identifiers (DIDs) extend Identrax beyond Nigerian borders. A DID is a globally-resolvable identifier that is:
+### 9.1 Regulator-ready audit export
 
-- **Self-sovereign**: Controlled by the citizen, not any institution
-- **Cryptographically verifiable**: Linked to the citizen's public keys
-- **Blockchain-anchored**: Tamper-evident through on-chain hash anchoring
-- **Interoperable**: Follows W3C DID Core specification
+We produce, on demand, a complete evidence pack covering consent records, verification events, and screening decisions for any date range, rendered in NIMC, NDPC, and CBN-consumable formats. Each export is derived from the append-only audit store, Ed25519-signed, and hash-anchored, so it is tamper-evident. This single feature is our renewal insurance: a compliance officer who survives an examination on the strength of our export does not let procurement switch vendors.
 
-### 8.2 DID Method
+### 9.2 Policy engine
 
-Identrax implements a custom DID method: `did:identrax`
+The policy engine centralizes every rule that could change when a regulator issues a directive: assurance thresholds per purpose, reuse policies, retention windows, scope-minimization rules, and screening thresholds. When a rule changes, we update the engine once and no client changes a line of integration code. Policies are versioned, and the version in force at each decision is recorded in the audit event, so a past decision is always explainable against the rules that applied then.
 
-```
-did:identrax:01HXM3NDEKTSV4RRFFQ69G5FAV
-    └──────┘ └────────────────────────────┘
-     method         ULID identifier
-```
+### 9.3 Live compliance posture and case review
 
-The DID Document contains:
-
-```json
-{
-  "@context": "https://www.w3.org/ns/did/v1",
-  "id": "did:identrax:01HXM3NDEKTSV4RRFFQ69G5FAV",
-  "verificationMethod": [{
-    "id": "#auth-key-1",
-    "type": "Ed25519VerificationKey2020",
-    "publicKeyMultibase": "z6Mkf..."
-  }],
-  "authentication": ["#auth-key-1"],
-  "service": [{
-    "type": "IdentraxWallet",
-    "serviceEndpoint": "https://api.identrax.ng/v1/did/resolve/..."
-  }]
-}
-```
-
-### 8.3 Blockchain Anchoring
-
-DID proofs are anchored to the **Polygon** blockchain (EVM-compatible, low-cost):
-
-```mermaid
-sequenceDiagram
-    participant API as Identrax API
-    participant Poly as Polygon Network
-
-    %% Step 1: Hash anchoring
-    API ->> API: Compute content hash
-    API ->> Poly: EIP-1559 zero-value transaction\ncalldata = content hash
-
-    %% Step 2: Receipt
-    Poly -->> API: Transaction receipt\n{ txHash, blockNumber }
-
-    %% Step 3: Finality
-    API ->> API: Store txHash + blockNumber
-    API ->> Poly: Wait for confirmations
-    Note right of Poly: Confirmations:\n1 → 5 → 30\n(~1 minute finality)
-
-    Note over API,Poly: Cost per anchor ≈ 30,000 gas\n≈ $0.001 on Polygon
-```
-
-**Why Polygon?**
-- EVM-compatible (largest developer ecosystem)
-- Sub-cent transaction costs
-- 2-second block times
-- Strong validator set and network security
-- Growing adoption in identity use cases
-
-### 8.4 Cross-Border Verification
-
-With blockchain-anchored DIDs, a Nigerian citizen can prove their identity to:
-
-- **Foreign embassies** (visa applications)
-- **International employers** (remote hiring)
-- **Cross-border financial institutions** (remittances, banking)
-- **International education institutions** (admissions)
-
-The verifier resolves the DID, checks the blockchain anchor, and verifies the cryptographic proof  all without contacting Identrax servers.
+A per-client dashboard answers the one question a compliance officer truly has: if we were audited tomorrow, what would hurt. Every gap is shown with a severity and a fix path, and a regulatory-change feed pushes a plain-language note when a new directive affects that client and states what we already handled on their behalf. Every flagged or failed verification lands in a human-reviewable case queue with full context, an appeal path, and a decision log, which is at once our fairness mechanism and the client's defense file.
 
 ---
 
-## 9. Zero-Knowledge Proofs
+## 10. Risk Intelligence Network
 
-### 9.1 The Privacy Problem
+Our moat is cross-organization fraud signal shared without raw PII exchange between organizations.
 
-Even with scoped consent, some verifications reveal more than necessary. When a bar checks a patron's age, the bouncer sees their full date of birth, name, and address on the ID card. In the digital world, we can do better.
+### 10.1 How the signal moves
 
-### 9.2 ZK-Based Claims
-
-Identrax supports zero-knowledge proofs for privacy-preserving claims:
-
-| Claim | What Verifier Learns | What Verifier Does NOT Learn |
-|-------|---------------------|----------------------------|
-| `age_over_18` | Person is ≥ 18 years old | Exact date of birth |
-| `credit_band_good` | Credit score is in "good" band | Exact score |
-| `income_above_X` | Income exceeds threshold | Exact income |
-| `resident_of_lagos` | Person lives in Lagos | Exact address |
-
-### 9.3 Architecture
+When an identity or device pattern is flagged as high risk at one member institution, risk scoring rises at another, without either institution seeing the other's underlying data. We achieve this by never moving PII in the first place. Fingerprints are reduced to keyed, non-reversible tokens at the originating organization's boundary, and the network returns only a risk score with decay, never the flagging event, the flagging institution, or the underlying attributes.
 
 ```mermaid
 flowchart TB
-    subgraph ZK["ZK PROOF SYSTEM"]
-        direction TB
-
-        %% Circuit Layer
-        subgraph CIRCUIT["ZK CIRCUIT"]
-            direction TB
-            CK["proving_key"]
-            VK["verify_key"]
-
-            NoteC["Admin-managed proof templates<br/>
-            • claim_type (e.g. age_over)<br/>
-            • proof_system (Groth16, etc.)<br/>
-            • input schemas"]
-
-            CK --- VK
-        end
-
-        %% Proof Layer
-        subgraph PROOF["ZK PROOF"]
-            direction TB
-            PI["public_inputs"]
-            PD["proof_data<br/>(opaque bytes)"]
-            VF["verified: true / false"]
-            EX["expires_at"]
-
-            Meta["Per-user, per-claim instance<br/>
-            • nonce (one-time use)<br/>
-            • max_verifications<br/>
-            • expires_at"]
-
-            PI --> PD --> VF --> EX
-        end
-
-        CIRCUIT --> PROOF
+    subgraph OrgA["Member A"]
+        A1["Flags device pattern as fraud"]
     end
-
-    %% Flow Explanation
-    NoteFlow["Flow:<br/>
-    1. Citizen requests proof via wallet<br/>
-    2. Platform generates proof using citizen data<br/>
-    3. Proof is verifiable by anyone with verify_key<br/>
-    4. Citizen’s actual data is never revealed"]
-
-    PROOF -.-> NoteFlow
-
-```
-
----
-
-## 10. Credit Scoring Engine
-
-### 10.1 Motivation
-
-Traditional credit scoring in Nigeria relies on limited data from credit bureaus, excluding the 60%+ of adults who lack formal credit histories. Identrax's consent-based architecture enables a new model: **consented multi-signal credit scoring**.
-
-### 10.2 Architecture
-
-```mermaid
-flowchart TB
-    subgraph CREDIT["CREDIT SCORING ENGINE"]
-        direction TB
-
-        %% Model configuration
-        subgraph MODEL["SCORING MODEL"]
-            direction TB
-            W["weight_config"]
-            B["band_thresholds"]
-            MS["min_signals"]
-            MC["min_confidence"]
-            VD["validity_days"]
-        end
-
-        %% Credit signals
-        subgraph SIGNALS["CREDIT SIGNAL"]
-            direction TB
-            S1["source_type:<br/>• utility_bill<br/>• rent_payment<br/>• telco_usage<br/>• bank_txn<br/>• employment"]
-            S2["raw_value"]
-            S3["normalized"]
-            S4["weight"]
-            S5["weighted_contribution"]
-            S2 --> S3 --> S4 --> S5
-        end
-
-        %% Computation
-        subgraph COMPUTE["SCORE COMPUTATION"]
-            direction TB
-            C1["score = Σ(signal.weighted_contribution)"]
-            C2["band = map(score, band_thresholds)"]
-            C3["confidence = f(signal_count, diversity)"]
-            OUT["Output:<br/>• score (0–1000)<br/>• band<br/>• confidence"]
-            C1 --> C2 --> C3 --> OUT
-        end
-
-        MODEL --> COMPUTE
-        SIGNALS --> COMPUTE
+    subgraph RIN["Risk Intelligence Network"]
+        H["Per-member keyed signal tokens<br/>(scoped, rotated, access-controlled)"]
+        S["Signal store: token to risk weight, with decay"]
     end
-
-```
-
-### 10.3 Key Differentiator
-
-Unlike traditional credit bureaus that collect data without direct citizen involvement, Identrax's credit scoring:
-
-1. **Requires explicit consent** for every data signal
-2. **Is transparent** — citizens see which signals contributed to their score
-3. **Is portable** — citizens can share their score with any organization
-4. **Uses alternative data** — utility payments, telco history, rent  not just formal credit
-
----
-
-## 11. AML/KYC Screening
-
-### 11.1 Compliance Layer
-
-Identrax provides built-in AML/KYC screening for organizations subject to compliance requirements:
-
-```mermaid
-flowchart TB
-    subgraph SCREENING["SCREENING ENGINE"]
-        direction TB
-
-        %% Policy configuration
-        subgraph POLICY["SCREENING POLICY"]
-            direction TB
-            P1["jurisdiction"]
-            P2["enabled_sources"]
-            P3["fuzzy_threshold"]
-            P4["risk_thresholds"]
-            P5["auto_clear"]
-            P6["re_screening_days"]
-        end
-
-        %% Screening request
-        subgraph REQUEST["SCREENING REQUEST"]
-            direction TB
-            R1["type:<br/>• pep<br/>• sanctions<br/>• adverse_media"]
-            R2["status:<br/>pending → completed / flagged"]
-            R3["risk_level + score"]
-            R4["match_count"]
-            R1 --> R2 --> R3 --> R4
-        end
-
-        %% Screening result
-        subgraph RESULT["SCREENING RESULT"]
-            direction TB
-            S1["source:<br/>OFAC / UN"]
-            S2["match_type:<br/>exact / fuzzy / alias"]
-            S3["match_score: 0–1"]
-            S4["disposition:<br/>cleared / flagged / escalated"]
-            S1 --> S2 --> S3 --> S4
-        end
-
-        POLICY --> REQUEST
-        REQUEST --> RESULT
+    subgraph OrgB["Member B"]
+        B1["Queries risk at onboarding"]
     end
-
+    A1 -->|"emit signal token, not PII"| H --> S
+    B1 -->|"query by token"| S -->|"risk score only"| B1
 ```
 
----
+### 10.2 The privacy boundary, stated honestly
 
-## 12. Offline Verification
-
-### 12.1 The Connectivity Challenge
-
-Nigeria's internet infrastructure, while improving, remains unreliable in rural areas and during network congestion. Identity verification should not fail because of poor connectivity.
-
-### 12.2 Signed QR Tokens
-
-Identrax issues **offline verification tokens**  platform-signed QR codes that can be verified without an internet connection:
-
-```mermaid
-flowchart TB
-    subgraph OFFLINEFLOW["OFFLINE VERIFICATION FLOW"]
-        direction TB
-
-        %% ONLINE PREPARATION
-        subgraph ONLINE["ONLINE (Preparation)"]
-            O1["Citizen requests offline token<br/>via wallet"]
-            O2["Platform creates signed payload<br/>{ user_id, scopes, claims,<br/>verification_level: L2,<br/>issued_at, expires_at,<br/>nonce,<br/>platform_signature: Ed25519 }"]
-            O3["Wallet generates QR code<br/>from signed payload"]
-            O4["Token stored locally<br/>for offline use"]
-
-            O1 --> O2 --> O3 --> O4
-        end
-
-        %% OFFLINE VERIFICATION
-        subgraph OFFLINE["OFFLINE (Verification)"]
-            F1["Verifier scans QR code"]
-            F2["Verifier app actions:<br/>a. Decode payload<br/>b. Verify Ed25519 signature<br/>c. Check expiry<br/>d. Check max_uses<br/>e. Display verified claims"]
-            F3["Verification succeeds<br/>No internet required"]
-
-            F1 --> F2 --> F3
-        end
-
-        %% RECONNECTION
-        subgraph RECONNECT["RECONNECTION (Reconciliation)"]
-            R1["Offline usage records stored locally"]
-            R2["When connectivity returns,<br/>records synced to platform"]
-            R3["Platform updates audit trail"]
-
-            R1 --> R2 --> R3
-        end
-
-        ONLINE --> OFFLINE --> RECONNECT
-    end
-
-```
+A salted hash alone does not guarantee privacy, because a low-entropy input such as a device fingerprint can be brute-forced offline. We therefore treat the network's privacy as a threat model, not a slogan. We use per-member and per-purpose keying so that tokens cannot be correlated across organizations, we rotate keys on a schedule, we enforce strict access controls and rate limits on cross-organization queries to blunt membership-inference and enumeration attacks, and we hold the network to a strict isolation invariant: it has no read path into Layer 1 raw inputs or Layer 2 PII, and ingests only signal tokens through a one-way boundary. This boundary is enforced at the module level and verified in a pre-scale security review.
 
 ---
 
-## 13. Security Model
+## 11. Decentralized Identity and Zero-Knowledge Proofs
 
-### 13.1 Nine-Layer Defense
+### 11.1 Decentralized identifiers
 
-```mermaid
-flowchart TB
-    subgraph SECURITY["SECURITY ARCHITECTURE"]
-        direction TB
+We implement a `did:identrax` method so that a citizen's identity can be resolved and verified beyond Nigerian borders, for visa applications, remote hiring, cross-border banking, and international admissions. Post-Act, the DID chains to the NIMC PKI root rather than presenting as an independent root, and on-chain anchoring provides tamper-evidence and cross-border resolution as a secondary layer.
 
-        L1["Layer 1 — TRANSPORT<br/>
-        • TLS 1.3<br/>
-        • CORS allowlisting<br/>
-        • Non-root containers"]
+### 11.2 Zero-knowledge proofs
 
-        L2["Layer 2 — AUTHENTICATION<br/>
-        • Ed25519 challenge–response (wallet)<br/>
-        • HMAC API key + OAuth tokens (organisation)<br/>
-        • Static API key rotation (admin)"]
+Even with scoped consent, some checks reveal more than necessary. We support zero-knowledge proofs so that a verifier learns only what they need.
 
-        L3["Layer 3 — AUTHORIZATION<br/>
-        • Scope-based access control<br/>
-        • Ownership checks<br/>
-        • Consent-gated data access"]
-
-        L4["Layer 4 — INPUT VALIDATION<br/>
-        • ULID format validation<br/>
-        • Body size limits<br/>
-        • Type checking<br/>
-        • Business rule validation"]
-
-        L5["Layer 5 — RATE LIMITING<br/>
-        • Global: 1000/min<br/>
-        • Wallet: 60/min<br/>
-        • Org: 300/min<br/>
-        • NIN verify: 3/day<br/>
-        • Challenge failures: 5 → lockout"]
-
-        L6["Layer 6 — DATA PROTECTION<br/>
-        • NIN: hashed + encrypted<br/>
-        • Tokens: hash-only storage<br/>
-        • Webhook secrets: AES-256-GCM<br/>
-        • Documents: SHA-256 hashes"]
-
-        L7["Layer 7 — AUDIT & MONITORING<br/>
-        • Immutable audit trail<br/>
-        • Structured JSON logging<br/>
-        • Health check endpoints<br/>
-        • Citizen audit visibility"]
-
-        L8["Layer 8 — IDEMPOTENCY<br/>
-        • X-Idempotency-Key support<br/>
-        • Redis-cached replay protection"]
-
-        L9["Layer 9 — BLOCKCHAIN INTEGRITY<br/>
-        • Content hashes anchored to Polygon<br/>
-        • 30-block finality<br/>
-        • Gas price safety caps<br/>
-        • Tamper-evident proof chain"]
-
-        L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7 --> L8 --> L9
-    end
-
-```
-
-### 13.2 Threat Model
-
-| Threat | Mitigation |
-|--------|-----------|
-| **Stolen device** | Keys are hardware-backed (TEE/Secure Enclave) + biometric/PIN gated |
-| **Database breach** | Only hashes stored; NIN encrypted with AES-256-GCM; session tokens are hashes |
-| **Man-in-the-middle** | TLS 1.3; challenge-response protocol with device-bound keys |
-| **Replay attack** | Challenges are single-use; idempotency keys; webhook timestamp validation |
-| **Insider threat** | Immutable audit trail; least-privilege access; no raw PII in logs |
-| **API abuse** | Multi-tier rate limiting; scope-based authorization |
-| **Consent forgery** | Consent is Ed25519-signed by citizen's device; non-repudiable |
-| **Fake verification** | Proof tokens are platform-signed + time-limited + blockchain-anchored |
-| **NIN harvesting** | NIN rate-limited to 3/day per number; stored only as hash |
+| Claim | What the verifier learns | What they do not learn |
+|-------|--------------------------|------------------------|
+| `age_over_18` | The person is at least 18 | The exact date of birth |
+| `credit_band_good` | The score is in the good band | The exact score |
+| `income_above_X` | Income exceeds a threshold | The exact income |
+| `resident_of_lagos` | The person lives in Lagos | The exact address |
 
 ---
 
-## 14. Privacy by Design
+## 12. Credit Scoring and AML Screening
 
-### 14.1 Data Minimization
+### 12.1 Consented credit scoring
 
-The platform enforces data minimization at every layer:
+Traditional credit scoring excludes the many adults who lack formal credit histories. Our consent-based model computes a score from multiple signals, utility payments, telco usage, rent, bank transactions, and employment, each of which requires explicit consent. The citizen sees which signals contributed, the score is portable, and where possible we express it as a zero-knowledge band rather than an exact figure.
 
-1. **Collection**: Only hash + last-4 of NIN stored by default
-2. **Storage**: Raw PII is never persisted if a hash or attestation suffices
-3. **Access**: Proof tokens contain only consented scopes
-4. **Transmission**: Boolean claims preferred over raw data
-5. **Retention**: Consent grants have explicit expiry; data access stops on revocation
-6. **Audit**: Citizens can see exactly who accessed their data, when, and for what purpose
+### 12.2 AML and KYC screening
 
-### 14.2 Right to Erasure
-
-Citizens can:
-
-- **Revoke any consent** — immediately stops data access
-- **Revoke device keys** — invalidates all sessions
-- **View full audit trail** — every access is logged
-- **Request account deactivation** — cryptographic keys are revoked, identity anchor is deactivated
-
-### 14.3 No Tracking
-
-The platform does not:
-
-- Track user location (beyond optional geo-verified addresses)
-- Build behavioral profiles
-- Share data between organizations without explicit per-org consent
-- Retain data beyond the consented duration
+We provide built-in AML, PEP, sanctions, and adverse-media screening driven by a policy engine, with jurisdiction, enabled sources, fuzzy-match thresholds, risk thresholds, auto-clear rules, and re-screening intervals. A clean result clears automatically where the client policy allows, and a hit routes to the human-reviewable case queue described in Section 9.3, because a false positive that denies someone an account is a direct harm and recreates the exclusion problem we exist to solve.
 
 ---
 
-## 15. Platform Architecture
+## 13. Know Your Business and the Travel Rule Module
 
-### 15.1 Modular Monolith
+### 13.1 Know Your Business
 
-Identrax is built as a **modular monolith** — a single deployable binary with strict internal module boundaries. This provides:
+Every organization that must verify individuals under the Act also has to verify the businesses it works with: corporate customers, vendors, correspondent partners, and beneficial owners. We reuse the exact consent, proof, and audit architecture we built for individuals, applied to company records. Beneficial ownership is always graded with a confidence score, never returned as a bare clean pass, because a clean-looking attestation over a layered shell structure would enable laundering rather than catch it.
 
-- **Deployment simplicity** of a monolith
-- **Code organization** of microservices
-- **Transaction guarantees** across modules (single database)
-- **Easy refactoring** into microservices if scale demands
+### 13.2 The Travel Rule module for crypto and VASPs
 
-### 15.2 Technology Stack
-
-| Layer | Technology | Rationale |
-|-------|-----------|-----------|
-| **Language** | Go 1.24 | Performance, concurrency, single-binary deployment |
-| **HTTP** | Fiber v2 | High-performance, Express-like ergonomics |
-| **ORM** | entgo.io/ent | Type-safe, code-generated, auto-migration |
-| **Database** | PostgreSQL 16 | ACID, JSONB, mature ecosystem |
-| **Cache/Queue** | Redis 7 | Sub-ms latency for challenges, rate limits |
-| **Object Storage** | S3-compatible | Document blobs, scalable |
-| **Mobile** | Flutter | Cross-platform (Android + iOS) from single codebase |
-| **Web (Org)** | React + React Router | Modern SPA with SSR capability |
-| **Web (Admin)** | React + React Router | Separate deployment for security isolation |
-| **Blockchain** | Polygon (go-ethereum) | Low-cost EVM chain for DID anchoring |
-| **IDs** | ULID | Lexicographically sortable, B-tree friendly |
-| **Tokens** | PASETO v4.local | Secure-by-default, no algorithm confusion |
-| **Signatures** | Ed25519 | Fast, compact, widely supported |
-| **Encryption** | AES-256-GCM | AEAD for envelope encryption at rest |
-| **Logging** | slog (stdlib) | Structured JSON, zero-dependency |
-| **Container** | Docker (multi-stage) | ~25MB production image, non-root |
-
-### 15.3 Module Map
-
-```mermaid
-flowchart LR
-    subgraph DOMAINS["18 DOMAIN MODULES"]
-        direction LR
-
-        %% CORE V1
-        subgraph CORE["CORE (V1)"]
-            direction TB
-
-            C1["auth<br/>sessions<br/>tokens"]
-            C2["identity<br/>NIN + devices"]
-
-            C3["challenge<br/>nonces<br/>verify"]
-            C4["consent<br/>requests<br/>grants"]
-
-            C5["proof<br/>tokens<br/>verify"]
-            C6["sign<br/>documents<br/>bundles"]
-
-            C7["audit<br/>immutable<br/>events"]
-            C8["profile<br/>address<br/>linked"]
-
-            C9["vault<br/>encrypted<br/>docs"]
-            C10["webhook<br/>delivery<br/>signing"]
-
-            C11["notify<br/>push / sms / email"]
-            C12["org<br/>lifecycle<br/>API keys"]
-        end
-
-        %% ADVANCED PHASE 2+
-        subgraph ADVANCED["ADVANCED (Phase 2+)"]
-            direction TB
-
-            A1["credit<br/>scoring<br/>signals"]
-            A2["screening<br/>AML / KYC<br/>policies"]
-
-            A3["biometric<br/>attestation<br/>liveness"]
-            A4["DID<br/>blockchain<br/>anchoring"]
-
-            A5["ZKP<br/>circuits<br/>proofs"]
-            A6["offline<br/>QR tokens<br/>reconcile"]
-        end
-    end
-
-```
+Travel Rule obligations require crypto exchanges to identify both sender and receiver on transfers above a threshold without shipping the full identity file between counterparties. Our proof-token architecture maps naturally onto this: we can attest who a counterparty is to another VASP without handing over the customer's full identity file. We run this as an architecturally isolated module with its own compliance monitoring, so movement in the fast-changing crypto rules does not touch the liability profile of our core banking business.
 
 ---
 
-## 16. Integration Model
+## 14. Offline Verification
 
-### 16.1 For Organizations
-
-Organizations integrate with Identrax through a REST API with webhook callbacks:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│              ORGANISATION INTEGRATION                        │
-│                                                             │
-│  Step 1: Onboarding                                         │
-│  ─────────────────                                          │
-│  Admin creates org → receives API key + secret              │
-│  Org configures webhook URL + subscribed events             │
-│  Org requests scopes (approved by admin)                    │
-│                                                             │
-│  Step 2: Authentication                                     │
-│  ─────────────────────                                      │
-│  POST /v1/org/oauth/token                                   │
-│  Authorization: Basic <api_key:secret>                      │
-│  → Receives access_token (1h TTL)                           │
-│                                                             │
-│  Step 3: Verification                                       │
-│  ────────────────────                                       │
-│  POST /v1/org/verification-requests                         │
-│  { user_ref, scopes, purpose, assurance_level }             │
-│  → Citizen receives push notification                       │
-│  → Citizen approves/declines in wallet                      │
-│  → Org receives webhook: consent.approved + proof_token     │
-│  → Org fetches: GET /v1/org/proofs/{token}                  │
-│  → Receives verified claims                                 │
-│                                                             │
-│  Step 4: Ongoing                                            │
-│  ───────────────                                            │
-│  Webhook events for: consent changes, doc signing,          │
-│  profile updates, screening results                         │
-│                                                             │
-│  Integration time: ~2 hours for basic verification          │
-│  SDKs planned: JavaScript, Python, Java, PHP               │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 16.2 Webhook Delivery
-
-Webhooks are signed with HMAC-SHA256 and delivered with exponential backoff:
-
-```
-Headers:
-  Content-Type: application/json
-  X-Webhook-Signature: sha256=<hmac_hex>
-  X-Webhook-ID: <delivery_ulid>
-  X-Webhook-Event: consent.approved
-  User-Agent: SmartID-Webhooks/1.0
-
-Delivery:
-  • Up to 5 retries with exponential backoff
-  • Endpoints auto-disabled after 15 consecutive failures
-  • All deliveries logged with status, response code, latency
-```
+Connectivity in Nigeria remains uneven, and verification should not fail because of a poor signal. We issue platform-signed QR tokens that can be verified without an internet connection. Online, the citizen requests a token, we produce a signed payload with the user reference, scopes, claims, an assurance level, an issue and expiry time, and a nonce, and the wallet renders it as a QR code held locally. Offline, a verifier scans the code, verifies the signature and expiry, checks the maximum uses, and displays the verified claims, all without contacting us. When connectivity returns, offline usage records are reconciled into the audit trail.
 
 ---
 
-## 17. Economic Analysis
+## 15. Data Governance: Processor, Not Controller
 
-### 17.1 Cost Structure
-
-| Operation | Infrastructure Cost | Notes |
-|-----------|-------------------|-------|
-| NIN verification (NIMC) | Per-call API fee | Pass-through from NIMC |
-| Consent verification | ~$0.001 | Database + compute |
-| Blockchain anchor | ~$0.001 | Polygon gas (30K gas @ 50 gwei) |
-| Webhook delivery | ~$0.0001 | HTTP POST |
-| Credit score computation | ~$0.01 | Signal aggregation + compute |
-| AML screening | Per-call | Pass-through from screening provider |
-
-### 17.2 Revenue Model
-
-| Revenue Stream | Description |
-|---------------|-------------|
-| **Verification API calls** | Per-verification fee for organizations |
-| **Subscription tiers** | Monthly plans based on verification volume |
-| **Premium features** | Credit scoring, AML screening, blockchain anchoring |
-| **Document signing** | Per-document fee for legal signing |
-| **Enterprise SLA** | Custom integrations, dedicated support |
-
-### 17.3 Unit Economics
-
-| Metric | Target |
-|--------|--------|
-| Cost per verification | < ₦50 ($0.03) |
-| Revenue per verification | ₦100–500 ($0.06–0.30) |
-| Gross margin | 60–80% |
-| Citizen acquisition cost | ₦0 (citizen app is free) |
-| Org acquisition cost | Sales + integration support |
-
-### 17.4 Free for Citizens
-
-The citizen wallet is and will always be **free**. Citizens are the asset holders, not the product. Revenue comes exclusively from organizations that benefit from verified identity.
+Under the Act's liability regime this is an invariant, not a preference. We operate as a data processor. We resolve and attest to claims, and we do not become the system of record for aggregated PII. The Verification Core is stateless with respect to source PII, holding NIN only as a hash, a last-four display hint, and an optional encrypted value for re-verification, never a resolved-attributes warehouse. Because we do not aggregate, a breach exposes hashes and minimized claims rather than a national attribute database, which bounds our concentration liability. As the verification layer for many regulated clients at once, a single breach or failed audit would otherwise be a cross-portfolio, criminal-liability event, so the processor-only boundary is our primary structural mitigation, and it is written explicitly into every client contract before signing.
 
 ---
 
-## 18. Regulatory Alignment
+## 16. Security Model
 
-### 18.1 Nigeria Data Protection Act (NDPA) 2023
+We defend in depth across the request path.
 
-Identrax is designed for compliance with the NDPA:
+| Layer | Controls |
+|-------|----------|
+| Transport | TLS 1.3, CORS allowlisting, non-root containers |
+| Authentication | Ed25519 challenge and response for wallets, OAuth for organizations, rotating keys for admin |
+| Authorization | Scope-based access control, ownership checks, consent-gated data access |
+| Input validation | ULID format checks, body-size limits, type checking, business-rule validation |
+| Rate limiting | Layered global, per-wallet, and per-organization limits, a hard cap on NIN verification per number per day, and lockout after repeated challenge failures |
+| Data protection | NIN hashed and encrypted, tokens stored as hashes, webhook secrets encrypted with AES-256-GCM |
+| Audit and monitoring | Immutable audit trail, structured JSON logging with no raw PII, health and metrics endpoints, per-source status |
+| Idempotency | Idempotency keys with Redis-cached replay protection |
+| Blockchain integrity | Content hashes anchored for tamper-evidence, with confirmation waits and gas caps |
 
-| NDPA Requirement | Identrax Implementation |
-|-----------------|----------------------|
-| Lawful basis for processing | Explicit consent for every data access |
-| Purpose limitation | Consent is purpose-bound (e.g., "loan_application") |
-| Data minimization | Boolean claims preferred; scoped access |
-| Accuracy | NIN-anchored; org-attested credentials |
-| Storage limitation | Consent has explicit expiry; revocation is immediate |
-| Integrity & confidentiality | AES-256-GCM encryption; SHA-256 hashing; TLS 1.3 |
-| Data subject rights | Audit trail visibility; consent revocation; account deactivation |
-
-### 18.2 CBN KYC Regulations
-
-Identrax's tiered assurance levels align with CBN's risk-based KYC tiers:
-
-| CBN KYC Tier | Identrax Assurance | Requirements |
-|-------------|-------------------|-------------|
-| Tier 1 (Low risk) | L1–L2 | NIN verification |
-| Tier 2 (Medium risk) | L2–L3 | NIN + device-bound identity + biometric |
-| Tier 3 (High risk) | L3–L5 | NIN + biometric + verified address + income |
-
-### 18.3 NIMC Act Compliance
-
-Identrax does not compete with or replace NIMC. It:
-
-- **Uses** NIN as the sole identity root
-- **Verifies** through official NIMC API channels
-- **Does not** issue or modify NIN
-- **Complements** NIMC's infrastructure with a consent layer
-
-### 18.4 International Standards
-
-| Standard | Alignment |
-|----------|----------|
-| W3C DID Core | DID method implementation |
-| W3C Verifiable Credentials | Proof token format |
-| eIDAS (EU) | Assurance levels map to eIDAS Low/Substantial/High |
-| ISO 27001 | Security architecture follows ISO 27001 control framework |
-| PCI DSS | Card data never touched; but encryption standards followed |
+Our threat model addresses stolen devices (hardware-backed keys gated by biometric or PIN), database breaches (only hashes stored, NIN encrypted, session tokens hashed), replay (single-use challenges and idempotency), consent forgery (citizen-signed, non-repudiable grants), fake verification (platform-signed, time-limited, anchored proof tokens), and NIN harvesting (strict per-number rate limits, stored only as a hash).
 
 ---
 
-## 19. Competitive Landscape
+## 17. Privacy by Design
 
-### 19.1 Comparison
-
-| Feature | Identrax | Traditional KYC APIs | Self-Sovereign ID (SSI) | Government eID |
-|---------|----------|---------------------|------------------------|---------------|
-| **Identity root** | NIN (existing) | Various | Self-created | Government-issued |
-| **Citizen consent** | Explicit, per-request | None/implicit | Full control | None |
-| **Data minimization** | Boolean claims | Full PII shared | Selective disclosure | Full PII |
-| **Offline capability** | Signed QR codes | None | Some | Smart card |
-| **Blockchain anchoring** | Polygon | None | Various chains | None |
-| **Credit scoring** | Built-in (consented) | Separate provider | None | None |
-| **AML screening** | Built-in | Separate provider | None | None |
-| **Cross-border** | DID-based | API-only | DID-based | Bilateral treaties |
-| **Implementation cost** | Low (API integration) | Medium | High | Very high |
-| **Citizen UX** | Mobile wallet | N/A | Complex wallets | Physical card |
-
-### 19.2 Key Differentiators
-
-1. **NIN-first**: Anchored to existing government infrastructure, not creating parallel identity
-2. **Consent-centric**: Every data flow requires explicit citizen approval
-3. **Full-stack**: Identity + consent + signing + credit + screening in one platform
-4. **Nigeria-native**: Built for Nigerian regulatory, infrastructure, and connectivity realities
-5. **Offline-ready**: Signed QR codes for areas with poor connectivity
-6. **Privacy-preserving**: Zero-knowledge proofs for minimum-disclosure verification
+We enforce data minimization at every layer: we collect only a hash and last-four of NIN by default, we prefer boolean claims over raw values, proof tokens carry only consented scopes, consent grants carry explicit expiry, and access stops on revocation. Citizens can revoke any consent immediately, revoke device keys to invalidate sessions, view a full audit trail of who accessed their data and why, and request account deactivation. We do not track location beyond optional geo-verified addresses, we do not build behavioral profiles, and we do not share data between organizations without explicit per-organization consent.
 
 ---
 
-## 20. Roadmap
+## 18. Platform Architecture: the Rust Backend
 
-### Phase 1: Foundation (Current)
-*Core identity infrastructure*
+### 18.1 A modular monolith in Rust
 
-- [x] NIN-anchored registration
-- [x] Device-bound keypair management
-- [x] Challenge-response authentication
-- [x] Consent management (request, approve, revoke)
-- [x] Proof token issuance and verification
-- [x] Digital document signing
-- [x] Immutable audit trail
-- [x] Profile management (addresses, linked IDs, education)
-- [x] Encrypted document vault
-- [x] Organisation onboarding and API access
-- [x] Webhook delivery system
-- [x] Push/SMS/email notifications
-- [x] Mobile wallet (Flutter, Android + iOS)
-- [x] Organisation portal (React)
-- [x] Admin dashboard (React)
+We build the backend entirely in Rust as a single deployable binary with strict internal crate boundaries. We moved from our original Go design to Rust for memory safety on a system that handles national identity data, for predictable performance under load, and because the cryptographic and concurrency guarantees matter to us more than raw development speed on this product. The modular monolith gives us the deployment simplicity of a monolith with the code organization of microservices, and the crate boundaries are enforced by the compiler, which is how we keep the Risk Intelligence Network from ever reaching raw verification inputs.
 
-### Phase 2: Advanced Verification
-*Enhanced identity assurance*
+### 18.2 Technology stack
 
-- [x] Credit scoring engine with alternative data
-- [x] AML/KYC screening with policy engine
-- [x] Biometric attestation (device-bound)
-- [x] Blockchain-anchored DIDs (Polygon)
-- [x] Zero-knowledge proof system
-- [x] Offline verification (signed QR codes)
-- [ ] Address verification (GPS + utility bills)
-- [ ] Education credential verification (university APIs)
-- [ ] BVN cross-verification
+| Concern | What we use |
+|---------|-------------|
+| Language and runtime | Rust with the Tokio async runtime |
+| HTTP framework | Axum, composed over Tower middleware |
+| Database | PostgreSQL 16 via SQLx, with compile-checked queries and reviewed migrations |
+| Cache and queue | Redis 7 via a connection pool |
+| Object storage | S3-compatible, for encrypted document blobs |
+| Signatures | Ed25519 via ed25519-dalek |
+| Hashing and encryption | SHA-256, and AES-256-GCM for envelope encryption |
+| Session tokens | PASETO v4.local |
+| Blockchain | An EVM client for anchoring |
+| Zero-knowledge | A Groth16 proving and verifying backend |
+| Serialization | serde |
+| Telemetry | Structured JSON tracing, with health and metrics endpoints |
+| Container | Multi-stage Docker, distroless final image, non-root |
 
-### Phase 3: Ecosystem Growth
-*Scale and interoperability*
+### 18.3 Workspace shape
 
-- [ ] Organisation SDKs (JavaScript, Python, Java, PHP)
-- [ ] Widget embeds for web integration
-- [ ] Marketplace for third-party verifiers
-- [ ] Employment verification network
-- [ ] Insurance underwriting integration
-- [ ] Multi-language support (Hausa, Yoruba, Igbo)
-- [ ] USSD fallback for feature phones
-
-### Phase 4: Cross-Border & Advanced
-*International reach*
-
-- [ ] Cross-border verification protocol
-- [ ] Multi-country DID resolution
-- [ ] eIDAS bridge for EU recognition
-- [ ] Pan-African identity interoperability
-- [ ] Continuous risk monitoring (L6 assurance)
-- [ ] Decentralized governance model
-- [ ] Multi-chain anchoring (Ethereum L1, other L2s)
+We organize the backend as a Cargo workspace with one binary crate that assembles the router and middleware, and one library crate per domain: identity, auth, challenge, consent, proof, the verification core and its source connectors, screening, credit, biometric, DID, blockchain, zero-knowledge, offline, signing, profile, audit, policy, compliance, the risk network, KYB, the Travel Rule module, webhooks, notifications, organization lifecycle, and admin. A crate can only reach another crate it declares as a dependency, so our trust and data-governance boundaries are compiler-enforced rather than convention.
 
 ---
 
-## 21. Conclusion
+## 19. Integration Model and Developer Experience
 
-Nigeria stands at a critical inflection point in digital identity. The infrastructure exists over 100 million NINs have been issued but the **consent, privacy, and interoperability layers** are missing. Citizens are forced to surrender their personal data to every requesting institution, with no control over how it's used, stored, or shared.
+### 19.1 How an organization onboards
 
-Identrax bridges this gap by:
+We create the organization and issue an API key and secret, we approve exactly the scopes their use case needs and no more, they register signed webhook endpoints, they authenticate through OAuth to receive a short-lived token, they run a full verification loop against our sandbox with test NINs, they sign the processor and controller boundary into their contract, and we enable production. A basic integration takes an afternoon, and no sales call is required to start building.
 
-1. **Anchoring to NIN** — leveraging existing government infrastructure rather than competing with it
-2. **Placing citizens at the center** — cryptographic wallets give citizens control over their identity
-3. **Enabling verification without data transfer** — proofs over PII, boolean claims over raw data
-4. **Building for Nigerian realities** — offline capability, mobile-first, low-bandwidth-friendly
-5. **Preparing for the future** — blockchain anchoring, zero-knowledge proofs, and cross-border interoperability
+### 19.2 The developer experience we hold ourselves to
 
-The technical architecture is built, the 18 domain modules are implemented, and the platform is ready for pilot deployment. Identrax is not just a product it's a paradigm shift in how identity works in Nigeria.
+Compliance infrastructure succeeds or fails on experience, not on cryptography. We issue sandbox keys instantly on signup, with test data that exercises every response path including failures and timeouts. We ship one clean REST API plus SDKs for the stacks Nigerian teams actually use, a drop-in consent widget for teams that do not want to build UI, copy-paste quickstarts that reach a successful sandbox verification quickly, webhooks as the default pattern with signed payloads and automatic retries and a replay tool, honest error design where every failure returns a specific documented reason code and a suggested next action, and a public status page with per-source health so a client can see when an upstream source is degrading and see our cached degraded-mode take over.
 
-**Identity is a right, not a product. Identrax makes it so.**
+### 19.3 SDKs
+
+We ship server-side SDKs for Rust, JavaScript and TypeScript, Python, Java and Kotlin, PHP, Go, and .NET, each wrapping the full organization API, handling token refresh and idempotency and retries, and verifying webhook signatures. On the client side we ship a Flutter wallet SDK, a web consent widget, a React Native SDK, and native mobile bindings, so the consent and signing experience ships inside the organization's own product. For teams that want the minimum, we ship small single-purpose webhook-verification libraries in each language.
+
+### 19.4 Degraded mode
+
+Because every client depends on NIMC, we define a degraded-mode SLA rather than failing open or hard-closing. In normal mode we resolve live per the reuse policy. In degraded mode, when NIMC is unreachable, we serve claims within a cached validity window for purposes whose policy permits it, queue live-only requests, and surface a clear status to the client. In an extended outage we reject new high-assurance onboarding while allowing capped L0 provisional onboarding with a reconciliation obligation on recovery. When the source returns, all degraded-mode decisions are reconciled against live responses and the audit trail is updated.
 
 ---
 
-## 22. References
+## 20. Economic Model
+
+### 20.1 Why we do not quote one flat price
+
+A flat price per verification hides our real cost structure and leads to two mistakes at once, overcharging a simple NIN check and undercharging a full compliance bundle. Going directly to NIMC carries a substantial fixed cost in access licensing before a single bulk credit is bought, which is why almost no bank or fintech connects directly and why aggregators exist. Our sourcing is staged: we begin on an aggregator or reseller arrangement to reach the market immediately, and we move to a direct NIMC license once our monthly volume makes that economical, at which point owning direct access becomes a moat in itself because it makes us the layer others resell.
+
+### 20.2 We price by what is actually included
+
+We price by tier, so a client pays for what they use and our compliance and consent layer, not the raw lookup, is what earns our margin. A NIN-only tier returns a single boolean claim. A NIN-plus-BVN tier cross-matches two government-linked sources. A full KYC bundle adds a signed consent proof token, an audit trail entry, and webhook delivery, which cost us a fraction of a cent to produce, so the margin on the bundle comes from the compliance envelope rather than from marking up a government lookup. An enhanced bundle adds AML, PEP, and sanctions screening plus biometric liveness, and carries a higher price because the screening input cost is genuinely higher.
+
+### 20.3 The revenue stack
+
+Beyond per-verification fees, we stack platform subscriptions that become a budget line item, legacy-book re-verification projects for insurers and pension administrators newly obligated under the Act, premium modules such as screening and address verification and credit scoring, a Compliance-as-a-Service retainer for audit readiness and regulatory-change management, paid access to the Risk Intelligence Network, white-label SDK licensing, and a marketplace take-rate on third-party verifiers routed through us. As the mix shifts from per-call revenue toward subscriptions, retainers, and network fees, our blended gross margin rises, which is what makes us a software business rather than a reseller.
+
+---
+
+## 21. Regulatory Alignment
+
+### 21.1 NDPA 2023
+
+We are designed for the Nigeria Data Protection Act. We rely on explicit consent as our lawful basis, we bind consent to a purpose, we minimize data with boolean claims and scoped access, we anchor to NIN for accuracy, we give consent an explicit expiry with immediate revocation, we protect data with encryption and hashing and TLS, and we give the data subject audit visibility, revocation, and deactivation.
+
+### 21.2 CBN KYC tiers
+
+Our assurance ladder maps to CBN's risk-based tiers: L1 and L2 to Tier 1, L2 and L3 to Tier 2, and L3 through L5 to Tier 3, with our L0 provisional state sitting below Tier 1 under capped limits.
+
+### 21.3 The NIMC Act and our accreditation posture
+
+We do not compete with or replace NIMC. We use NIN as our sole identity root, we verify through official NIMC channels, and we complement NIMC with a consent, audit, and risk-intelligence layer. Given NIMC's new role as Root Certification Authority, we are clarifying whether our platform signing key should become a cross-certified or subordinate participant in NIMC's PKI hierarchy rather than remaining an independent trust root, and we treat that as near-term design work. The Act's implementing regulations for private-sector integrators are still to be issued, so we are starting the MOU, ASA license, and NDPC registration conversations ahead of finalization, which positions us as a reference implementation rather than a late entrant in a queue that forms once the rules settle.
+
+### 21.4 International standards
+
+We align our DID method to W3C DID Core, our proof format to W3C Verifiable Credentials, our assurance levels to the eIDAS Low, Substantial, and High tiers, and our security architecture to the ISO 27001 control framework, with certification and NDPC processor registration treated as prerequisites to enterprise general availability rather than aspirations.
+
+---
+
+## 22. Competitive Landscape
+
+Smile Identity, Youverify, VerifyMe, Prembly, and Dojah compete mainly on raw KYC speed and price. None of them leads with regulator-ready audit export, legacy-book re-verification at scale, or a cross-organization risk network. Our differentiation is not faster or cheaper verification. It is that we absorb a client's ongoing NIMC Act compliance and audit exposure, backed by a consent-and-proof architecture that returns claims rather than raw PII, unlike most incumbent KYC APIs. A generic compliance pitch would not be defensible; the combination of the compliance operating layer, progressive assurance, and the risk network is.
+
+---
+
+## 23. Roadmap
+
+We already built much of the original architecture: NIN-anchored registration, device-bound keys, consent management, proof tokens, document signing, the audit trail, credit scoring, AML screening, biometric attestation, blockchain-anchored DIDs, zero-knowledge proofs, and offline QR verification. What remains to reach a sellable, production-ready system is closer to four months than the year a typical enterprise compliance product takes, because we already made the hard architecture decisions.
+
+- **Month 1, harden the core.** We move NIN and BVN from sandbox to production through an aggregator arrangement, bring the consent engine and proof tokens to production load, and ship the developer-experience baseline of instant sandbox keys, quickstarts, SDKs, webhooks with replay, and the status page.
+- **Month 2, build the Compliance Operating Layer.** We ship the regulator-ready audit export first because it closes pilots, ship the compliance posture dashboard and the case review queue, and complete verified address and verified income on the assurance ladder.
+- **Month 3, pilot the network and new modules.** We run the Risk Intelligence Network with a few pilot organizations on anonymized signal only, build a first pass of Know Your Business and the legacy-book re-verification pipeline, and build a first pass of the isolated Travel Rule module.
+- **Month 4, harden and launch.** We run penetration and load testing and begin ISO 27001 preparation, define and ship the degraded-mode SLA, and onboard our first paying pilots with the processor and controller boundary written into each contract.
+
+In parallel, on a timeline NIMC and NDPC control rather than one our engineering speed can compress, we start the accreditation, ASA license, and NDPC registration conversations on day one, pursue the aggregator sourcing agreement and the NIMC bulk-credit quote, and pre-position with newly obligated insurers and pension administrators ahead of their implementation circulars.
+
+---
+
+## 24. Conclusion
+
+The NIMC Act 2026 turned identity compliance from background hygiene into a funded, board-level priority for every regulated Nigerian institution, on a compressed timeline. Our architecture, consent-scoped, non-repudiable, and data-minimizing by design, is already aligned with what the law asks for. What is left is executing the organization-first repositioning, winning the beachhead segments, shipping the developer, compliance-officer, and end-customer experiences well enough that developers recommend us and compliance officers refuse to lose us, and moving early on accreditation and PKI alignment before the regulatory landscape settles around whoever gets there first.
+
+We anchor to NIN, we place verified claims rather than raw data at the center, we make consent provable, and we stay a processor rather than a controller. Identity compliance should be something an organization plugs into once. We are building the system that makes it so.
+
+---
+
+## 25. References
 
 1. National Identity Management Commission (NIMC). "About NIN." https://nimc.gov.ng
-2. Nigeria Data Protection Act 2023. Federal Republic of Nigeria.
-3. Central Bank of Nigeria. "Anti-Money Laundering/Combating the Financing of Terrorism Regulations."
-4. W3C. "Decentralized Identifiers (DIDs) v1.0." https://www.w3.org/TR/did-core/
-5. W3C. "Verifiable Credentials Data Model v1.1." https://www.w3.org/TR/vc-data-model/
-6. Polygon Technology. "Polygon PoS Documentation." https://docs.polygon.technology
+2. National Identity Management Commission Act 2026. Federal Republic of Nigeria.
+3. Nigeria Data Protection Act 2023. Federal Republic of Nigeria.
+4. Central Bank of Nigeria. "Anti-Money Laundering and Combating the Financing of Terrorism Regulations."
+5. W3C. "Decentralized Identifiers (DIDs) v1.0." https://www.w3.org/TR/did-core/
+6. W3C. "Verifiable Credentials Data Model." https://www.w3.org/TR/vc-data-model/
 7. PASETO. "Platform-Agnostic Security Tokens." https://paseto.io
 8. Estonian Information System Authority. "Smart-ID Technical Documentation."
 9. ISO/IEC 27001:2022. "Information Security Management Systems."
 10. eIDAS Regulation (EU) No 910/2014. "Electronic Identification and Trust Services."
 11. World Bank. "ID4D Global Dataset." https://id4d.worldbank.org
-12. GSMA. "Digital Identity in Nigeria." Mobile for Development.
-13. Ethereum Foundation. "go-ethereum." https://geth.ethereum.org
-14. oklog. "ULID Specification." https://github.com/ulid/spec
+12. Financial Action Task Force. "Guidance on the Travel Rule for Virtual Assets."
 
 ---
 
-*© 2026 Identrax. All rights reserved.*
-
-*This whitepaper is provided for informational purposes only. The technical specifications and roadmap described herein are subject to change as the platform evolves. Nothing in this document constitutes financial, legal, or investment advice.*
+*© 2026 Identrax. This whitepaper is provided for informational purposes only. The technical specifications and roadmap described herein are subject to change as the platform evolves and as NIMC's implementing regulations and PKI accreditation terms are finalized. Nothing in this document constitutes financial, legal, or investment advice.*
